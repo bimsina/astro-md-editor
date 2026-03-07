@@ -52,6 +52,17 @@ function getMimeType(fileName: string): string | undefined {
   return IMAGE_MIME_TYPES[extension];
 }
 
+function assertPathWithinRoot(rootDir: string, absolutePath: string): void {
+  const relativePath = toPosix(relative(rootDir, absolutePath));
+  if (
+    relativePath.length === 0 ||
+    relativePath.startsWith('..') ||
+    relativePath.includes('/../')
+  ) {
+    throw new Error('Image path is outside the project root.');
+  }
+}
+
 async function collectImageAssetsForSource(params: {
   rootDir: string;
   source: ImageSource;
@@ -179,5 +190,43 @@ export async function readImageAssetPreviewById(assetId: string): Promise<{
   return {
     bytes,
     mimeType: asset.mimeType,
+  };
+}
+
+function isRemoteSourcePath(sourcePath: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(sourcePath);
+}
+
+export async function readImagePreviewBySourcePath(params: {
+  currentFilePath: string;
+  sourcePath: string;
+}): Promise<{ bytes: Buffer; mimeType: string }> {
+  const rootDir = getCollectionsRootPath();
+  const normalizedSourcePath = params.sourcePath.trim();
+  if (!normalizedSourcePath) {
+    throw new Error('Image path is empty.');
+  }
+
+  if (isRemoteSourcePath(normalizedSourcePath)) {
+    throw new Error('Remote image URLs are not resolved through local preview.');
+  }
+
+  const currentFileAbsolutePath = resolve(params.currentFilePath);
+  assertPathWithinRoot(rootDir, currentFileAbsolutePath);
+
+  const targetAbsolutePath = normalizedSourcePath.startsWith('/')
+    ? resolve(rootDir, 'public', normalizedSourcePath.replace(/^\/+/, ''))
+    : resolve(dirname(currentFileAbsolutePath), normalizedSourcePath);
+  assertPathWithinRoot(rootDir, targetAbsolutePath);
+
+  const mimeType = getMimeType(targetAbsolutePath);
+  if (!mimeType) {
+    throw new Error(`Unsupported image extension: ${normalizedSourcePath}`);
+  }
+
+  const bytes = await readFile(targetAbsolutePath);
+  return {
+    bytes,
+    mimeType,
   };
 }

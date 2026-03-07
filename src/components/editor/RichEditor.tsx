@@ -26,6 +26,7 @@ import {
   PopoverTrigger,
 } from '#/components/ui/popover';
 import { ImageAssetBrowser } from '#/components/editor/ImageAssetBrowser';
+import { getLocalImagePreviewServerFn } from '#/lib/image-preview.api';
 import { htmlToMarkdown, markdownToHtml } from '#/lib/rich-markdown';
 import type { ImageFieldSourceMode } from '#/lib/schema-form';
 import { cn } from '#/lib/utils';
@@ -54,6 +55,49 @@ type SlashCommand = {
 };
 
 const IMAGE_ALT_PLACEHOLDER = 'image';
+const LOCAL_IMAGE_SOURCE_ATTRIBUTE = 'data-original-src';
+
+const RichImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      originalSrc: {
+        default: null,
+        parseHTML: (element) => {
+          return element.getAttribute(LOCAL_IMAGE_SOURCE_ATTRIBUTE);
+        },
+        renderHTML: (attributes) => {
+          const originalSrc = attributes.originalSrc;
+          if (typeof originalSrc !== 'string' || originalSrc.length === 0) {
+            return {};
+          }
+
+          return {
+            [LOCAL_IMAGE_SOURCE_ATTRIBUTE]: originalSrc,
+          };
+        },
+      },
+    };
+  },
+});
+
+function isPreviewableLocalImageSource(sourcePath: string): boolean {
+  const normalized = sourcePath.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  if (
+    normalized.startsWith('http://') ||
+    normalized.startsWith('https://') ||
+    normalized.startsWith('data:') ||
+    normalized.startsWith('blob:')
+  ) {
+    return false;
+  }
+
+  return true;
+}
 
 function resolveSlashQueryState(editor: Editor): SlashQueryState | undefined {
   const { selection } = editor.state;
@@ -207,12 +251,86 @@ export default function RichEditor({
 
   const skipOnUpdateRef = React.useRef(false);
   const syncedMarkdownRef = React.useRef(content);
+  const localImagePreviewUrlsRef = React.useRef<Map<string, string>>(new Map());
+  const localImagePreviewPendingRef = React.useRef<Set<string>>(new Set());
 
   const syncSlashState = React.useCallback((instance: Editor) => {
     const nextSlashState = resolveSlashQueryState(instance);
     setSlashState(nextSlashState);
     setSlashSelectionIndex(0);
   }, []);
+
+  const applyLocalImagePreviews = React.useCallback(
+    (instance: Editor) => {
+      if (!currentFilePath) {
+        return;
+      }
+
+      const imageNodes = Array.from(instance.view.dom.querySelectorAll('img'));
+      for (const node of imageNodes) {
+        const originalSource =
+          node.getAttribute(LOCAL_IMAGE_SOURCE_ATTRIBUTE) ??
+          node.getAttribute('src') ??
+          '';
+        const normalizedSource = originalSource.trim();
+        if (!isPreviewableLocalImageSource(normalizedSource)) {
+          continue;
+        }
+
+        const previewKey = `${currentFilePath}::${normalizedSource}`;
+        const cachedPreviewUrl = localImagePreviewUrlsRef.current.get(previewKey);
+        if (cachedPreviewUrl) {
+          if (node.getAttribute('src') !== cachedPreviewUrl) {
+            node.setAttribute('src', cachedPreviewUrl);
+          }
+          continue;
+        }
+
+        if (localImagePreviewPendingRef.current.has(previewKey)) {
+          continue;
+        }
+
+        localImagePreviewPendingRef.current.add(previewKey);
+        void getLocalImagePreviewServerFn({
+          data: {
+            currentFilePath,
+            sourcePath: normalizedSource,
+          },
+        })
+          .then(async (response) => {
+            if (!response.ok) {
+              throw new Error(`Preview request failed (${response.status})`);
+            }
+
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            localImagePreviewUrlsRef.current.set(previewKey, objectUrl);
+
+            const refreshedNodes = Array.from(
+              instance.view.dom.querySelectorAll('img'),
+            );
+            for (const refreshedNode of refreshedNodes) {
+              const refreshedOriginalSource =
+                refreshedNode.getAttribute(LOCAL_IMAGE_SOURCE_ATTRIBUTE) ??
+                refreshedNode.getAttribute('src') ??
+                '';
+              if (refreshedOriginalSource.trim() !== normalizedSource) {
+                continue;
+              }
+
+              refreshedNode.setAttribute('src', objectUrl);
+            }
+          })
+          .catch(() => {
+            // Keep the original src when local preview resolution fails.
+          })
+          .finally(() => {
+            localImagePreviewPendingRef.current.delete(previewKey);
+          });
+      }
+    },
+    [currentFilePath],
+  );
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -234,7 +352,7 @@ export default function RichEditor({
       TaskItem.configure({
         nested: true,
       }),
-      Image.configure({
+      RichImage.configure({
         inline: false,
         allowBase64: false,
       }),
@@ -248,6 +366,7 @@ export default function RichEditor({
     },
     onUpdate: ({ editor: instance }) => {
       syncSlashState(instance);
+      applyLocalImagePreviews(instance);
       if (skipOnUpdateRef.current) {
         return;
       }
@@ -266,6 +385,24 @@ export default function RichEditor({
   });
 
   React.useEffect(() => {
+    return () => {
+      for (const url of localImagePreviewUrlsRef.current.values()) {
+        URL.revokeObjectURL(url);
+      }
+      localImagePreviewUrlsRef.current.clear();
+      localImagePreviewPendingRef.current.clear();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    for (const url of localImagePreviewUrlsRef.current.values()) {
+      URL.revokeObjectURL(url);
+    }
+    localImagePreviewUrlsRef.current.clear();
+    localImagePreviewPendingRef.current.clear();
+  }, [currentFilePath]);
+
+  React.useEffect(() => {
     if (!editor) {
       return;
     }
@@ -281,10 +418,19 @@ export default function RichEditor({
       });
       syncedMarkdownRef.current = content;
       syncSlashState(editor);
+      applyLocalImagePreviews(editor);
     } finally {
       skipOnUpdateRef.current = false;
     }
-  }, [content, editor, syncSlashState]);
+  }, [applyLocalImagePreviews, content, editor, syncSlashState]);
+
+  React.useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    applyLocalImagePreviews(editor);
+  }, [applyLocalImagePreviews, editor]);
 
   const filteredSlashCommands = React.useMemo(() => {
     if (!slashState) {

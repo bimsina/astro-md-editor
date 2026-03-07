@@ -32,6 +32,10 @@ type FrontmatterEditorState = SelectionIdentity & {
   clearSelection: () => void;
   setFieldValue: (field: string, value: unknown) => void;
   setContentDraft: (content: string) => void;
+  applyRevisionSnapshot: (snapshot: {
+    draft: ObjectRecord;
+    content: string;
+  }) => void;
   setEditorMode: (mode: EditorMode) => void;
   commitSavedState: () => void;
   setFieldTouched: (field: string) => void;
@@ -250,6 +254,35 @@ export const useFrontmatterEditorStore = create<FrontmatterEditorState>(
           initialContent: state.initialContent,
         }),
       })),
+    applyRevisionSnapshot: ({ draft, content }) =>
+      set((state) => {
+        const normalizedDraft = cloneRecord(draft);
+        const richModeState = getRichModeState(content);
+
+        return {
+          ...(() => {
+            return {
+              ...richModeState,
+              editorMode:
+                richModeState.richModeAvailability === 'blocked'
+                  ? 'basic'
+                  : state.editorMode,
+            };
+          })(),
+          draft: normalizedDraft,
+          contentDraft: content,
+          dirty: getIsDirty({
+            draft: normalizedDraft,
+            initial: state.initial,
+            contentDraft: content,
+            initialContent: state.initialContent,
+          }),
+          touched: {},
+          errors: {},
+          chipInputs: {},
+          validationRequested: false,
+        };
+      }),
     setEditorMode: (mode) =>
       set((state) => {
         if (mode === 'rich' && state.richModeAvailability === 'blocked') {

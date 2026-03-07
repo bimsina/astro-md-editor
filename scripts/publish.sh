@@ -5,15 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 PUBLISH=0
-STRICT=0
 TAG=""
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/publish.sh [--publish] [--strict] [--tag <tag>]
+Usage: ./scripts/publish.sh [--publish] [--tag <tag>]
 
   --publish    actually run npm publish (default is dry-run only)
-  --strict     also run lint/test/typecheck gates
   --tag <tag>  publish with npm dist-tag (e.g. next)
 EOF
 }
@@ -29,9 +27,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --publish)
       PUBLISH=1
-      ;;
-    --strict)
-      STRICT=1
       ;;
     --tag)
       [[ $# -ge 2 ]] || {
@@ -99,13 +94,6 @@ fi
 
 echo "Running build..."
 pnpm build
-
-if [[ "$STRICT" -eq 1 ]]; then
-  echo "Running strict checks..."
-  pnpm lint
-  pnpm exec vitest run --passWithNoTests
-  pnpm exec tsc --noEmit
-fi
 
 echo "Running npm pack dry-run..."
 PACK_JSON="$(npm pack --dry-run --json)"

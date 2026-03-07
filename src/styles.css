@@ -170,12 +170,6 @@ body,
   min-height: 100%;
 }
 
-*,
-::before,
-::after {
-  border-color: var(--border);
-}
-
 body {
   margin: 0;
   color: var(--sea-ink);

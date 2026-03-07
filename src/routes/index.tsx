@@ -16,6 +16,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '#/components/ui/resizable';
+import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs';
 import { useCollectionsData } from '#/hooks/useCollectionsData';
 import LeftSidebar from '#/components/editor/LeftSidebar';
 import Editor from '#/components/editor';
@@ -611,40 +612,38 @@ function App() {
               </p>
 
               <div className="flex shrink-0 items-center justify-end gap-2">
-                <div className="bg-muted/55 inline-flex rounded-md p-0.5">
-                  <button
-                    type="button"
-                    className={cn(
-                      'rounded-sm px-2 py-1 text-xs font-medium transition-colors',
-                      editorMode === 'basic'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                    onClick={() => setEditorMode('basic')}
-                    aria-label="Use basic editor mode"
-                  >
-                    Basic
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      'rounded-sm px-2 py-1 text-xs font-medium transition-colors',
-                      editorMode === 'rich'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                    onClick={() => setEditorMode('rich')}
-                    disabled={richModeAvailability === 'blocked'}
-                    aria-label="Use rich editor mode"
-                    title={
-                      richModeAvailability === 'blocked'
-                        ? `Rich mode unavailable: ${richModeBlockReason ?? 'unsupported syntax detected'}`
-                        : 'Use rich editor mode'
+                <Tabs
+                  value={editorMode}
+                  onValueChange={(value) => {
+                    if (value === 'basic' || value === 'rich') {
+                      setEditorMode(value);
                     }
-                  >
-                    Rich
-                  </button>
-                </div>
+                  }}
+                  className="gap-0"
+                >
+                  <TabsList className="bg-muted/55 h-auto rounded-md p-0.5">
+                    <TabsTrigger
+                      value="basic"
+                      className="h-auto rounded-sm px-2 py-1 text-xs font-medium"
+                      aria-label="Use basic editor mode"
+                    >
+                      Basic
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="rich"
+                      className="h-auto rounded-sm px-2 py-1 text-xs font-medium"
+                      disabled={richModeAvailability === 'blocked'}
+                      aria-label="Use rich editor mode"
+                      title={
+                        richModeAvailability === 'blocked'
+                          ? `Rich mode unavailable: ${richModeBlockReason ?? 'unsupported syntax detected'}`
+                          : 'Use rich editor mode'
+                      }
+                    >
+                      Rich
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
                 {dirty ? (
                   <Button
                     type="button"

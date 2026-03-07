@@ -12,6 +12,20 @@ const turndownService = new TurndownService({
 
 turndownService.use(gfm);
 
+turndownService.addRule('imageWithOriginalSource', {
+  filter: 'img',
+  replacement: (_, node) => {
+    const alt = node.getAttribute('alt') ?? '';
+    const originalSource =
+      node.getAttribute('data-original-src') ?? node.getAttribute('src') ?? '';
+    if (!originalSource) {
+      return '';
+    }
+
+    return `![${alt}](${originalSource})`;
+  },
+});
+
 turndownService.addRule('tiptapTaskItem', {
   filter: (node) => {
     return (
@@ -31,7 +45,21 @@ export function markdownToHtml(markdown: string): string {
     breaks: false,
   });
 
-  return typeof rendered === 'string' ? rendered : '';
+  if (typeof rendered !== 'string') {
+    return '';
+  }
+
+  return rendered.replace(
+    /<img\b([^>]*?)\bsrc=(["'])([^"']+)\2([^>]*)>/gi,
+    (fullMatch, before, quote, source, after) => {
+      if (/data-original-src=/i.test(fullMatch)) {
+        return fullMatch;
+      }
+
+      const escapedSource = String(source).replace(/"/g, '&quot;');
+      return `<img${before}src=${quote}${source}${quote} data-original-src="${escapedSource}"${after}>`;
+    },
+  );
 }
 
 export function htmlToMarkdown(html: string): string {

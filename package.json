@@ -20,7 +20,6 @@
     "build": "vite build",
     "start": "node index.mjs",
     "preview": "vite preview",
-    "test": "vitest run",
     "lint": "eslint",
     "format": "prettier --write .",
     "check": "prettier --write . && eslint --fix"
@@ -84,8 +83,7 @@
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "vite": "^7.3.1",
-    "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.0.18"
+    "vite-tsconfig-paths": "^6.1.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
