@@ -63,6 +63,10 @@ astro sync
 - Validates frontmatter with AJV before save.
 - Supports image field inference from `src/content.config.*` (`image()`, `z.array(image())`).
 - Supports image pickers for both `src` assets and `public` assets.
+- Includes a per-file Git History tab in the right sidebar (timeline-style commit list).
+- Shows commit message, author, and time; expands each item to inspect revision frontmatter.
+- Can apply a selected revision into the current draft with schema-safe frontmatter reapply (incompatible keys are skipped).
+- Applying history updates only the in-editor draft; normal Save flow still controls disk writes.
 
 ## Local development
 
