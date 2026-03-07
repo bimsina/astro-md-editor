@@ -1,4 +1,5 @@
 # Astro MD Editor
+
 [![npm version](https://img.shields.io/npm/v/astro-md-editor.svg)](https://www.npmjs.com/package/astro-md-editor)
 
 Editor UI for Astro content collections (`src/content`) with schema-aware frontmatter editing and markdown body editing.

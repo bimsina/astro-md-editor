@@ -89,6 +89,9 @@ importers:
       tw-animate-css:
         specifier: ^1.3.6
         version: 1.4.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -135,9 +138,6 @@ importers:
       prettier-plugin-tailwindcss:
         specifier: ^0.7.2
         version: 0.7.2(prettier@3.8.1)
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
       vite:
         specifier: ^7.3.1
         version: 7.3.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.31.1)(tsx@4.21.0)
