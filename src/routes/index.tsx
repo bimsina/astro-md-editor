@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { createServerFn } from '@tanstack/react-start';
 import * as React from 'react';
+import { toast } from 'sonner';
 import {
   Loader2Icon,
   PanelLeftCloseIcon,
@@ -19,14 +20,20 @@ import { useCollectionsData } from '#/hooks/useCollectionsData';
 import LeftSidebar from '#/components/editor/LeftSidebar';
 import Editor from '#/components/editor';
 import RightSidebar from '#/components/editor/RightSidebar';
+import ThemeToggle from '#/components/ThemeToggle';
 import {
   areEditorSearchEqual,
+  type CollectionData,
   getFileDisplayLabel,
   getSortedCollectionFiles,
   resolveEditorSelection,
   type EditorSearch,
 } from '#/lib/editor-selection';
-import { saveEditorSelection } from '#/lib/file-save.server';
+import {
+  createEditorSelection,
+  deleteEditorSelection,
+  saveEditorSelection,
+} from '#/lib/file-save.server';
 import { cn } from '#/lib/utils';
 import { useFrontmatterEditorStore } from '#/stores/frontmatterEditorStore';
 import type { PanelImperativeHandle } from 'react-resizable-panels';
@@ -37,6 +44,16 @@ type SaveSelectionPayload = {
   draft: Record<string, unknown>;
   content: string;
 };
+type DeleteSelectionPayload = {
+  collectionName: string;
+  fileId: string;
+};
+type CreateSelectionPayload = {
+  collectionName: string;
+  slug: string;
+};
+
+const EDITOR_MODE_STORAGE_KEY = 'astro-md-editor:editor-mode';
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -80,6 +97,54 @@ const saveSelectionToFile = createServerFn({ method: 'POST' })
     return saveEditorSelection(data);
   });
 
+const deleteSelectionFromFile = createServerFn({ method: 'POST' })
+  .inputValidator((payload: unknown): DeleteSelectionPayload => {
+    if (!isObjectRecord(payload)) {
+      throw new Error('Invalid delete payload.');
+    }
+
+    const collectionName = payload.collectionName;
+    const fileId = payload.fileId;
+    if (typeof collectionName !== 'string' || collectionName.length === 0) {
+      throw new Error('Missing collection name.');
+    }
+    if (typeof fileId !== 'string' || fileId.length === 0) {
+      throw new Error('Missing file id.');
+    }
+
+    return {
+      collectionName,
+      fileId,
+    };
+  })
+  .handler(async ({ data }) => {
+    return deleteEditorSelection(data);
+  });
+
+const createSelectionFile = createServerFn({ method: 'POST' })
+  .inputValidator((payload: unknown): CreateSelectionPayload => {
+    if (!isObjectRecord(payload)) {
+      throw new Error('Invalid create payload.');
+    }
+
+    const collectionName = payload.collectionName;
+    const slug = payload.slug;
+    if (typeof collectionName !== 'string' || collectionName.length === 0) {
+      throw new Error('Missing collection name.');
+    }
+    if (typeof slug !== 'string' || slug.length === 0) {
+      throw new Error('Missing slug.');
+    }
+
+    return {
+      collectionName,
+      slug,
+    };
+  })
+  .handler(async ({ data }) => {
+    return createEditorSelection(data);
+  });
+
 export const Route = createFileRoute('/')({
   validateSearch: (search: Record<string, unknown>): EditorSearch => {
     const record = search;
@@ -102,10 +167,15 @@ export const Route = createFileRoute('/')({
 
 function App() {
   const data = useCollectionsData();
+  const [collections, setCollections] = React.useState<CollectionData[]>(data);
   const search = Route.useSearch();
   const [leftOpen, setLeftOpen] = React.useState(true);
   const [rightOpen, setRightOpen] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isCreatingFile, setIsCreatingFile] = React.useState(false);
+  const [deletingFileId, setDeletingFileId] = React.useState<
+    string | undefined
+  >();
   const [saveError, setSaveError] = React.useState<string | undefined>();
   const leftPanelRef = React.useRef<PanelImperativeHandle | null>(null);
   const rightPanelRef = React.useRef<PanelImperativeHandle | null>(null);
@@ -113,6 +183,16 @@ function App() {
   const draft = useFrontmatterEditorStore((state) => state.draft);
   const contentDraft = useFrontmatterEditorStore((state) => state.contentDraft);
   const dirty = useFrontmatterEditorStore((state) => state.dirty);
+  const editorMode = useFrontmatterEditorStore((state) => state.editorMode);
+  const setEditorMode = useFrontmatterEditorStore(
+    (state) => state.setEditorMode,
+  );
+  const richModeAvailability = useFrontmatterEditorStore(
+    (state) => state.richModeAvailability,
+  );
+  const richModeBlockReason = useFrontmatterEditorStore(
+    (state) => state.richModeBlockReason,
+  );
   const loadSelection = useFrontmatterEditorStore(
     (state) => state.loadSelection,
   );
@@ -123,9 +203,13 @@ function App() {
     (state) => state.commitSavedState,
   );
 
+  React.useEffect(() => {
+    setCollections(data);
+  }, [data]);
+
   const { selectedCollection, selectedFile, normalizedSearch } = React.useMemo(
-    () => resolveEditorSelection(data, search),
-    [data, search],
+    () => resolveEditorSelection(collections, search),
+    [collections, search],
   );
 
   React.useEffect(() => {
@@ -169,6 +253,17 @@ function App() {
     };
   }, [dirty]);
 
+  React.useEffect(() => {
+    const storedMode = window.localStorage.getItem(EDITOR_MODE_STORAGE_KEY);
+    if (storedMode === 'basic' || storedMode === 'rich') {
+      setEditorMode(storedMode);
+    }
+  }, [setEditorMode]);
+
+  React.useEffect(() => {
+    window.localStorage.setItem(EDITOR_MODE_STORAGE_KEY, editorMode);
+  }, [editorMode]);
+
   const canNavigateAway = React.useCallback(() => {
     if (!dirty) {
       return true;
@@ -181,7 +276,7 @@ function App() {
 
   const selectCollection = React.useCallback(
     (collectionName: string) => {
-      const nextCollection = data.find(
+      const nextCollection = collections.find(
         (collection) => collection.name === collectionName,
       );
       if (!nextCollection) {
@@ -206,7 +301,7 @@ function App() {
         search: nextSearch,
       });
     },
-    [canNavigateAway, data, navigate, normalizedSearch],
+    [canNavigateAway, collections, navigate, normalizedSearch],
   );
 
   const selectFile = React.useCallback(
@@ -299,10 +394,12 @@ function App() {
         },
       });
       commitSavedState();
+      toast.success(`Saved ${getFileDisplayLabel(selectedFile)}.`);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to save file.';
       setSaveError(message);
+      toast.error(message);
     } finally {
       setIsSaving(false);
     }
@@ -315,6 +412,122 @@ function App() {
     selectedCollection,
     selectedFile,
   ]);
+
+  const handleDeleteFile = React.useCallback(
+    async (fileId: string) => {
+      if (!selectedCollection || deletingFileId) {
+        return;
+      }
+
+      const fileToDelete = selectedCollection.files.find(
+        (file) => file.id === fileId,
+      );
+      if (!fileToDelete) {
+        return;
+      }
+
+      if (dirty && selectedFile?.id === fileId) {
+        const discardConfirmed = window.confirm(
+          'This file has unsaved changes. Delete it anyway?',
+        );
+        if (!discardConfirmed) {
+          return;
+        }
+      }
+
+      setDeletingFileId(fileId);
+      setSaveError(undefined);
+
+      try {
+        await deleteSelectionFromFile({
+          data: {
+            collectionName: selectedCollection.name,
+            fileId,
+          },
+        });
+
+        setCollections((current) =>
+          current.map((collection) => {
+            if (collection.name !== selectedCollection.name) {
+              return collection;
+            }
+
+            return {
+              ...collection,
+              files: collection.files.filter((file) => file.id !== fileId),
+            };
+          }),
+        );
+
+        toast.success(`Deleted ${getFileDisplayLabel(fileToDelete)}.`);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unable to delete file.';
+        toast.error(message);
+      } finally {
+        setDeletingFileId(undefined);
+      }
+    },
+    [deletingFileId, dirty, selectedCollection, selectedFile?.id],
+  );
+
+  const handleCreateFile = React.useCallback(
+    async (slug: string) => {
+      if (!selectedCollection || isCreatingFile) {
+        return;
+      }
+
+      setIsCreatingFile(true);
+      setSaveError(undefined);
+
+      try {
+        const result = await createSelectionFile({
+          data: {
+            collectionName: selectedCollection.name,
+            slug,
+          },
+        });
+
+        const fileLabel = result.fileId;
+        setCollections((current) =>
+          current.map((collection) => {
+            if (collection.name !== selectedCollection.name) {
+              return collection;
+            }
+
+            return {
+              ...collection,
+              files: [
+                ...collection.files,
+                {
+                  id: result.fileId,
+                  filePath: result.filePath,
+                  data: {},
+                  content: '',
+                },
+              ],
+            };
+          }),
+        );
+
+        await navigate({
+          search: {
+            collection: selectedCollection.name,
+            file: result.fileId,
+          },
+        });
+
+        toast.success(`Created ${fileLabel}.`);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unable to create file.';
+        toast.error(message);
+      } finally {
+        setIsCreatingFile(false);
+      }
+    },
+    [isCreatingFile, navigate, selectedCollection],
+  );
 
   React.useEffect(() => {
     setSaveError(undefined);
@@ -329,24 +542,33 @@ function App() {
       <ResizablePanelGroup
         orientation="horizontal"
         onLayoutChanged={syncSidebarState}
+        defaultLayout={{
+          'editor-left-sidebar': 18,
+          'editor-main-panel': 64,
+          'editor-right-sidebar': 18,
+        }}
       >
         <ResizablePanel
           id="editor-left-sidebar"
           panelRef={leftPanelRef}
           collapsible
           collapsedSize={0}
-          defaultSize="18rem"
-          minSize="14rem"
-          maxSize="30rem"
+          defaultSize="18%"
+          minSize="14%"
+          maxSize="40%"
           className="min-w-0"
         >
           <aside className="bg-background/55 flex h-full flex-col overflow-hidden rounded-xl px-2.5 py-3 backdrop-blur-sm">
             <LeftSidebar
-              collections={data}
+              collections={collections}
               selectedCollectionName={selectedCollection?.name}
               selectedFileId={selectedFile?.id}
               onSelectCollection={selectCollection}
               onSelectFile={selectFile}
+              onCreateFile={handleCreateFile}
+              onDeleteFile={handleDeleteFile}
+              isCreatingFile={isCreatingFile}
+              deletingFileId={deletingFileId}
             />
           </aside>
         </ResizablePanel>
@@ -378,6 +600,7 @@ function App() {
                 >
                   {leftOpen ? <PanelLeftCloseIcon /> : <PanelLeftOpenIcon />}
                 </Button>
+                <ThemeToggle />
               </div>
 
               <p
@@ -388,6 +611,40 @@ function App() {
               </p>
 
               <div className="flex shrink-0 items-center justify-end gap-2">
+                <div className="bg-muted/55 inline-flex rounded-md p-0.5">
+                  <button
+                    type="button"
+                    className={cn(
+                      'rounded-sm px-2 py-1 text-xs font-medium transition-colors',
+                      editorMode === 'basic'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    onClick={() => setEditorMode('basic')}
+                    aria-label="Use basic editor mode"
+                  >
+                    Basic
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      'rounded-sm px-2 py-1 text-xs font-medium transition-colors',
+                      editorMode === 'rich'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    onClick={() => setEditorMode('rich')}
+                    disabled={richModeAvailability === 'blocked'}
+                    aria-label="Use rich editor mode"
+                    title={
+                      richModeAvailability === 'blocked'
+                        ? `Rich mode unavailable: ${richModeBlockReason ?? 'unsupported syntax detected'}`
+                        : 'Use rich editor mode'
+                    }
+                  >
+                    Rich
+                  </button>
+                </div>
                 {dirty ? (
                   <Button
                     type="button"
@@ -424,7 +681,7 @@ function App() {
             ) : null}
 
             <div className="flex min-h-0 flex-1 overflow-hidden pt-1">
-              <Editor />
+              <Editor currentFilePath={selectedFile?.filePath} />
             </div>
           </main>
         </ResizablePanel>
@@ -442,9 +699,9 @@ function App() {
           panelRef={rightPanelRef}
           collapsible
           collapsedSize={0}
-          defaultSize="18rem"
-          minSize="14rem"
-          maxSize="30rem"
+          defaultSize="18%"
+          minSize="14%"
+          maxSize="40%"
           className="min-w-0"
         >
           <aside className="bg-background/55 flex h-full flex-col overflow-hidden rounded-xl px-2.5 py-3 backdrop-blur-sm">

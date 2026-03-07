@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { LaptopMinimalIcon, MoonIcon, SunIcon } from 'lucide-react';
 
 type ThemeMode = 'light' | 'dark' | 'auto';
 
@@ -66,6 +67,12 @@ export default function ThemeToggle() {
     mode === 'auto'
       ? 'Theme mode: auto (system). Click to switch to light mode.'
       : `Theme mode: ${mode}. Click to switch mode.`;
+  const ModeIcon =
+    mode === 'auto'
+      ? LaptopMinimalIcon
+      : mode === 'dark'
+        ? MoonIcon
+        : SunIcon;
 
   return (
     <button
@@ -73,9 +80,9 @@ export default function ThemeToggle() {
       onClick={toggleMode}
       aria-label={label}
       title={label}
-      className="rounded-full border border-(--chip-line) bg-(--chip-bg) px-3 py-1.5 text-sm font-semibold text-(--sea-ink) shadow-[0_8px_22px_rgba(30,90,72,0.08)] transition hover:-translate-y-0.5"
+      className="text-muted-foreground hover:bg-background/65 hover:text-foreground focus-visible:ring-ring/35 inline-flex size-8 items-center justify-center rounded-md border-0 transition focus-visible:ring-2 focus-visible:outline-none"
     >
-      {mode === 'auto' ? 'Auto' : mode === 'dark' ? 'Dark' : 'Light'}
+      <ModeIcon className="size-4" />
     </button>
   );
 }

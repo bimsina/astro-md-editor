@@ -1,6 +1,9 @@
 import { create } from 'zustand';
+import { getRichModeSupport } from '#/lib/rich-mode-support';
 
 type ObjectRecord = Record<string, unknown>;
+export type EditorMode = 'basic' | 'rich';
+export type RichModeAvailability = 'supported' | 'blocked';
 
 type SelectionIdentity = {
   collectionName?: string;
@@ -12,6 +15,9 @@ type FrontmatterEditorState = SelectionIdentity & {
   initial: ObjectRecord;
   contentDraft: string;
   initialContent: string;
+  editorMode: EditorMode;
+  richModeAvailability: RichModeAvailability;
+  richModeBlockReason?: string;
   dirty: boolean;
   touched: Record<string, boolean>;
   errors: Partial<Record<string, string[]>>;
@@ -26,6 +32,7 @@ type FrontmatterEditorState = SelectionIdentity & {
   clearSelection: () => void;
   setFieldValue: (field: string, value: unknown) => void;
   setContentDraft: (content: string) => void;
+  setEditorMode: (mode: EditorMode) => void;
   commitSavedState: () => void;
   setFieldTouched: (field: string) => void;
   setValidationRequested: () => void;
@@ -131,6 +138,24 @@ function getIsDirty(params: {
   return params.contentDraft !== params.initialContent;
 }
 
+function getRichModeState(content: string): {
+  richModeAvailability: RichModeAvailability;
+  richModeBlockReason?: string;
+} {
+  const support = getRichModeSupport(content);
+  if (support.supported) {
+    return {
+      richModeAvailability: 'supported',
+      richModeBlockReason: undefined,
+    };
+  }
+
+  return {
+    richModeAvailability: 'blocked',
+    richModeBlockReason: support.reason,
+  };
+}
+
 export const useFrontmatterEditorStore = create<FrontmatterEditorState>(
   (set) => ({
     collectionName: undefined,
@@ -139,6 +164,9 @@ export const useFrontmatterEditorStore = create<FrontmatterEditorState>(
     initial: {},
     contentDraft: '',
     initialContent: '',
+    editorMode: 'basic',
+    richModeAvailability: 'supported',
+    richModeBlockReason: undefined,
     dirty: false,
     touched: {},
     errors: {},
@@ -153,6 +181,7 @@ export const useFrontmatterEditorStore = create<FrontmatterEditorState>(
         }
 
         const normalizedData = cloneRecord(data);
+        const richModeState = getRichModeState(content);
         return {
           collectionName,
           fileId,
@@ -160,6 +189,11 @@ export const useFrontmatterEditorStore = create<FrontmatterEditorState>(
           initial: cloneRecord(normalizedData),
           contentDraft: content,
           initialContent: content,
+          editorMode:
+            richModeState.richModeAvailability === 'blocked'
+              ? 'basic'
+              : state.editorMode,
+          ...richModeState,
           dirty: false,
           touched: {},
           errors: {},
@@ -175,6 +209,8 @@ export const useFrontmatterEditorStore = create<FrontmatterEditorState>(
         initial: {},
         contentDraft: '',
         initialContent: '',
+        richModeAvailability: 'supported',
+        richModeBlockReason: undefined,
         dirty: false,
         touched: {},
         errors: {},
@@ -196,6 +232,16 @@ export const useFrontmatterEditorStore = create<FrontmatterEditorState>(
       }),
     setContentDraft: (content) =>
       set((state) => ({
+        ...(() => {
+          const richModeState = getRichModeState(content);
+          return {
+            ...richModeState,
+            editorMode:
+              richModeState.richModeAvailability === 'blocked'
+                ? 'basic'
+                : state.editorMode,
+          };
+        })(),
         contentDraft: content,
         dirty: getIsDirty({
           draft: state.draft,
@@ -204,6 +250,20 @@ export const useFrontmatterEditorStore = create<FrontmatterEditorState>(
           initialContent: state.initialContent,
         }),
       })),
+    setEditorMode: (mode) =>
+      set((state) => {
+        if (mode === 'rich' && state.richModeAvailability === 'blocked') {
+          return state;
+        }
+
+        if (state.editorMode === mode) {
+          return state;
+        }
+
+        return {
+          editorMode: mode,
+        };
+      }),
     commitSavedState: () =>
       set((state) => ({
         initial: cloneRecord(state.draft),

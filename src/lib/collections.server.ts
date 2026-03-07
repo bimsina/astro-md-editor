@@ -181,6 +181,65 @@ export function updateCollectionsFileCache(params: {
   return true;
 }
 
+export function removeCollectionsFileCache(params: {
+  collectionName: string;
+  fileId: string;
+}): boolean {
+  const parsed = getParsedCollectionsData();
+  const targetCollection = parsed.collections.find(
+    (collection) => collection.name === params.collectionName,
+  );
+  if (!targetCollection?.files) {
+    return false;
+  }
+
+  const nextFiles = targetCollection.files.filter(
+    (file) => file.id !== params.fileId,
+  );
+  if (nextFiles.length === targetCollection.files.length) {
+    return false;
+  }
+
+  targetCollection.files = nextFiles;
+  cachedCollectionsRaw = JSON.stringify(parsed);
+  cachedCollectionsData = parsed;
+  hasParsedCollectionsData = true;
+  return true;
+}
+
+export function appendCollectionsFileCache(params: {
+  collectionName: string;
+  file: {
+    id: string;
+    filePath: string;
+    data: ObjectRecord;
+    content: string;
+  };
+}): boolean {
+  const parsed = getParsedCollectionsData();
+  const targetCollection = parsed.collections.find(
+    (collection) => collection.name === params.collectionName,
+  );
+  if (!targetCollection) {
+    return false;
+  }
+
+  if (!targetCollection.files) {
+    targetCollection.files = [];
+  }
+
+  targetCollection.files.push({
+    id: params.file.id,
+    filePath: params.file.filePath,
+    data: cloneObjectRecord(params.file.data),
+    content: params.file.content,
+  });
+  cachedCollectionsRaw = JSON.stringify(parsed);
+  cachedCollectionsData = parsed;
+  hasParsedCollectionsData = true;
+  return true;
+}
+
 export function getCollectionsRootPath(): string {
   return requireEnvValue(COLLECTIONS_ROOT_ENV_KEY);
 }

@@ -1,13 +1,5 @@
 import * as React from 'react';
-import { createServerFn } from '@tanstack/react-start';
-import {
-  CalendarDaysIcon,
-  Clock3Icon,
-  ImageIcon,
-  Loader2Icon,
-  SearchIcon,
-  XIcon,
-} from 'lucide-react';
+import { CalendarDaysIcon, Clock3Icon, XIcon } from 'lucide-react';
 import { Badge } from '#/components/ui/badge';
 import { buttonVariants } from '#/components/ui/button';
 import { Calendar } from '#/components/ui/calendar';
@@ -27,6 +19,7 @@ import {
   SelectValue,
 } from '#/components/ui/select';
 import { Switch } from '#/components/ui/switch';
+import { ImageAssetPickerPopover } from '#/components/editor/ImageAssetBrowser';
 import { fromDateTimeLocalToIso, toDateTimeLocalValue } from '#/lib/datetime';
 import type {
   CollectionData,
@@ -36,11 +29,6 @@ import {
   ROOT_VALIDATION_KEY,
   validateFrontmatterDraft,
 } from '#/lib/frontmatter-validation';
-import {
-  listImageAssetsForFile,
-  readImageAssetPreviewById,
-  type ImageAssetOption,
-} from '#/lib/image-assets.server';
 import {
   resolveAstroObjectSchema,
   resolveSchemaFields,
@@ -57,67 +45,7 @@ type RightSidebarProps = {
 
 const SUBTLE_FIELD_CLASS =
   'border-transparent bg-muted/50 shadow-none focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring/35';
-const MAX_ASSET_RESULTS = 120;
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
-
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-const listImageAssets = createServerFn({ method: 'POST' })
-  .inputValidator(
-    (
-      payload: unknown,
-    ): { currentFilePath: string; sourceMode: ImageFieldSourceMode } => {
-      if (!isObjectRecord(payload)) {
-        throw new Error('Invalid asset list payload.');
-      }
-
-      const currentFilePath = payload.currentFilePath;
-      if (typeof currentFilePath !== 'string' || currentFilePath.length === 0) {
-        throw new Error('Missing current file path.');
-      }
-
-      const sourceMode = payload.sourceMode;
-      if (sourceMode !== 'asset' && sourceMode !== 'public') {
-        throw new Error('Invalid image source mode.');
-      }
-
-      return {
-        currentFilePath,
-        sourceMode,
-      };
-    },
-  )
-  .handler(async ({ data }) => {
-    return listImageAssetsForFile(data.currentFilePath, data.sourceMode);
-  });
-
-const getImageAssetPreview = createServerFn({ method: 'POST' })
-  .inputValidator((payload: unknown): { assetId: string } => {
-    if (!isObjectRecord(payload)) {
-      throw new Error('Invalid asset preview payload.');
-    }
-
-    const assetId = payload.assetId;
-    if (typeof assetId !== 'string' || assetId.length === 0) {
-      throw new Error('Missing asset id.');
-    }
-
-    return {
-      assetId,
-    };
-  })
-  .handler(async ({ data }) => {
-    const preview = await readImageAssetPreviewById(data.assetId);
-    const bodyBytes = new Uint8Array(preview.bytes);
-    return new Response(bodyBytes, {
-      headers: {
-        'Content-Type': preview.mimeType,
-        'Cache-Control': 'public, max-age=300',
-      },
-    });
-  });
 
 function toNormalCaseLabel(fieldName: string): string {
   const normalized = fieldName
@@ -496,245 +424,6 @@ function StringArrayField({
   );
 }
 
-function AssetThumbnail({
-  assetId,
-  label,
-}: {
-  assetId: string;
-  label: string;
-}) {
-  const [previewUrl, setPreviewUrl] = React.useState<string | undefined>();
-  const [hasFailed, setHasFailed] = React.useState(false);
-  const requestIdRef = React.useRef(0);
-
-  React.useEffect(() => {
-    requestIdRef.current += 1;
-    const requestId = requestIdRef.current;
-    let objectUrl: string | undefined;
-
-    void (async () => {
-      try {
-        setHasFailed(false);
-        const response = await getImageAssetPreview({
-          data: {
-            assetId,
-          },
-        });
-        if (!response.ok) {
-          throw new Error(`Preview request failed (${response.status})`);
-        }
-
-        const blob = await response.blob();
-        if (requestIdRef.current !== requestId) {
-          return;
-        }
-
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl(objectUrl);
-      } catch {
-        if (requestIdRef.current !== requestId) {
-          return;
-        }
-        setHasFailed(true);
-        setPreviewUrl(undefined);
-      }
-    })();
-
-    return () => {
-      requestIdRef.current += 1;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [assetId]);
-
-  if (previewUrl) {
-    return (
-      <img
-        src={previewUrl}
-        alt={label}
-        className="h-24 w-full rounded-md object-cover"
-      />
-    );
-  }
-
-  return (
-    <div className="bg-muted/55 text-muted-foreground flex h-24 w-full items-center justify-center rounded-md">
-      {hasFailed ? (
-        <ImageIcon className="size-5" />
-      ) : (
-        <Loader2Icon className="size-5 animate-spin" />
-      )}
-    </div>
-  );
-}
-
-function AssetPicker({
-  currentFilePath,
-  sourceMode,
-  triggerLabel,
-  onSelectPath,
-}: {
-  currentFilePath: string;
-  sourceMode: ImageFieldSourceMode;
-  triggerLabel: string;
-  onSelectPath: (path: string) => void;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const [query, setQuery] = React.useState('');
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | undefined>();
-  const [assets, setAssets] = React.useState<ImageAssetOption[]>([]);
-  const [loadedForKey, setLoadedForKey] = React.useState<string | undefined>();
-
-  React.useEffect(() => {
-    const requestKey = `${currentFilePath}::${sourceMode}`;
-    if (!open || loadedForKey === requestKey) {
-      return;
-    }
-
-    let isCancelled = false;
-    setLoading(true);
-    setError(undefined);
-
-    void listImageAssets({
-      data: {
-        currentFilePath,
-        sourceMode,
-      },
-    })
-      .then((nextAssets) => {
-        if (isCancelled) {
-          return;
-        }
-        setAssets(nextAssets);
-        setLoadedForKey(requestKey);
-      })
-      .catch((fetchError: unknown) => {
-        if (isCancelled) {
-          return;
-        }
-        const message =
-          fetchError instanceof Error ? fetchError.message : String(fetchError);
-        setError(message);
-      })
-      .finally(() => {
-        if (!isCancelled) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [currentFilePath, loadedForKey, open, sourceMode]);
-
-  const filteredAssets = React.useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return assets.filter((asset) => {
-      if (normalizedQuery.length === 0) {
-        return true;
-      }
-
-      return (
-        asset.displayPath.toLowerCase().includes(normalizedQuery) ||
-        asset.value.toLowerCase().includes(normalizedQuery)
-      );
-    });
-  }, [assets, query]);
-
-  const visibleAssets = filteredAssets.slice(0, MAX_ASSET_RESULTS);
-  const sourceLabel = sourceMode === 'public' ? 'public' : 'src';
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        className={cn(
-          buttonVariants({ variant: 'outline' }),
-          'h-8 border-dashed text-xs',
-        )}
-      >
-        <ImageIcon className="size-3.5" />
-        {triggerLabel}
-      </PopoverTrigger>
-      <PopoverContent className="w-[34rem] max-w-[calc(100vw-2rem)] gap-2 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <Badge
-            variant="secondary"
-            className="bg-muted text-foreground/75 rounded-md border-transparent text-[11px] normal-case"
-          >
-            source: {sourceLabel}
-          </Badge>
-
-          <div className="relative w-60 max-w-full">
-            <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-            <Input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-              }}
-              className="bg-muted/50 focus-visible:ring-ring/35 h-8 border-transparent pl-8 text-xs shadow-none focus-visible:border-transparent focus-visible:ring-2"
-              placeholder="Search assets..."
-              aria-label="Search assets"
-            />
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="text-muted-foreground flex h-32 items-center justify-center gap-2 text-sm">
-            <Loader2Icon className="size-4 animate-spin" />
-            Loading assets...
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="text-destructive rounded-md bg-red-500/10 px-3 py-2 text-xs">
-            {error}
-          </div>
-        ) : null}
-
-        {!loading && !error ? (
-          <>
-            <div className="grid max-h-[22rem] grid-cols-3 gap-2 overflow-auto pr-1">
-              {visibleAssets.map((asset) => (
-                <button
-                  key={asset.id}
-                  type="button"
-                  className="border-border/40 hover:border-ring/35 bg-muted/25 hover:bg-muted/35 space-y-1.5 rounded-lg border p-1.5 text-left transition-colors"
-                  onClick={() => {
-                    onSelectPath(asset.value);
-                    setOpen(false);
-                  }}
-                  title={asset.value}
-                >
-                  <AssetThumbnail
-                    assetId={asset.id}
-                    label={asset.displayPath}
-                  />
-                  <p className="text-foreground/85 truncate text-[11px]">
-                    {asset.displayPath}
-                  </p>
-                </button>
-              ))}
-            </div>
-
-            {filteredAssets.length === 0 ? (
-              <p className="text-muted-foreground text-xs">No assets found.</p>
-            ) : null}
-
-            {filteredAssets.length > MAX_ASSET_RESULTS ? (
-              <p className="text-muted-foreground text-xs">
-                Showing first {MAX_ASSET_RESULTS} assets. Refine search for
-                more.
-              </p>
-            ) : null}
-          </>
-        ) : null}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 function ImageField({
   fieldKey,
   currentFilePath,
@@ -761,7 +450,7 @@ function ImageField({
         }}
         onBlur={onBlur}
       />
-      <AssetPicker
+      <ImageAssetPickerPopover
         currentFilePath={currentFilePath}
         sourceMode={sourceMode}
         triggerLabel="Browse assets"
@@ -812,7 +501,7 @@ function ImageArrayField({
         onBlur={onBlur}
         placeholder="Type path and press Enter"
       />
-      <AssetPicker
+      <ImageAssetPickerPopover
         currentFilePath={currentFilePath}
         sourceMode={sourceMode}
         triggerLabel="Add from assets"
