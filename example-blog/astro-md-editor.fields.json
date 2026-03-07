@@ -1,0 +1,15 @@
+{
+  "blog": {
+    "brandColor": { "type": "color" },
+    "coverAssetPath": { "type": "image", "mode": "public" }
+  },
+  "project": {
+    "accentColor": { "type": "color" },
+    "cardImagePath": { "type": "image", "mode": "public" }
+  },
+  "snippet": {
+    "hexColor": { "type": "color" },
+    "previewPath": { "type": "image", "mode": "public" },
+    "galleryPaths": { "type": "image", "multiple": true, "mode": "public" }
+  }
+}

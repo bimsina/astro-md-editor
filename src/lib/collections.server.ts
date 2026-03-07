@@ -1,9 +1,19 @@
 /// <reference types="node" />
 
 const COLLECTIONS_JSON_B64_ENV_KEY = 'APP_COLLECTIONS_JSON_B64';
-const COLLECTIONS_FILE_ENV_KEY = 'APP_COLLECTIONS_FILE';
+const COLLECTIONS_ROOT_ENV_KEY = 'APP_COLLECTIONS_ROOT';
 
 type ObjectRecord = Record<string, {}>;
+type ImageFieldUiMode = 'asset' | 'public';
+type FieldUiConfig =
+  | {
+      kind: 'image' | 'imageArray';
+      mode: ImageFieldUiMode;
+    }
+  | {
+      kind: 'color';
+    };
+type FieldUiMap = Record<string, FieldUiConfig>;
 
 let cachedCollectionsRaw: string | undefined;
 let cachedCollectionsData: unknown;
@@ -34,6 +44,7 @@ type CollectionsData = {
   collections: {
     hasSchema?: boolean;
     schema?: ObjectRecord;
+    fieldUi?: FieldUiMap;
     name: string;
     files?: {
       id: string;
@@ -50,6 +61,54 @@ function asObjectRecord(value: unknown): ObjectRecord | undefined {
   }
 
   return value as ObjectRecord;
+}
+
+function asFieldUiMap(value: unknown): FieldUiMap | undefined {
+  const record = asObjectRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  const parsed: FieldUiMap = {};
+  for (const [key, rawValue] of Object.entries(record)) {
+    if (
+      rawValue === 'image' ||
+      rawValue === 'imageArray' ||
+      rawValue === 'color'
+    ) {
+      if (rawValue === 'color') {
+        parsed[key] = { kind: 'color' };
+        continue;
+      }
+
+      parsed[key] = {
+        kind: rawValue,
+        mode: 'asset',
+      };
+      continue;
+    }
+
+    const rawConfig = asObjectRecord(rawValue);
+    if (!rawConfig || typeof rawConfig.kind !== 'string') {
+      continue;
+    }
+
+    if (rawConfig.kind === 'image' || rawConfig.kind === 'imageArray') {
+      parsed[key] = {
+        kind: rawConfig.kind,
+        mode: rawConfig.mode === 'public' ? 'public' : 'asset',
+      };
+      continue;
+    }
+
+    if (rawConfig.kind === 'color') {
+      parsed[key] = {
+        kind: 'color',
+      };
+    }
+  }
+
+  return Object.keys(parsed).length > 0 ? parsed : undefined;
 }
 
 function cloneObjectRecord(value: ObjectRecord): ObjectRecord {
@@ -71,6 +130,7 @@ export function getCollectionsData(): {
   name: string;
   hasSchema?: boolean;
   schema?: ObjectRecord;
+  fieldUi?: FieldUiMap;
   files: {
     id: string;
     filePath: string;
@@ -84,6 +144,7 @@ export function getCollectionsData(): {
     name: collection.name,
     hasSchema: collection.hasSchema,
     schema: asObjectRecord(collection.schema),
+    fieldUi: asFieldUiMap(collection.fieldUi),
     files: (collection.files ?? []).map((file) => ({
       ...file,
       data: cloneObjectRecord(asObjectRecord(file.data) ?? {}),
@@ -120,6 +181,6 @@ export function updateCollectionsFileCache(params: {
   return true;
 }
 
-export function getCollectionsFilePath(): string {
-  return requireEnvValue(COLLECTIONS_FILE_ENV_KEY);
+export function getCollectionsRootPath(): string {
+  return requireEnvValue(COLLECTIONS_ROOT_ENV_KEY);
 }

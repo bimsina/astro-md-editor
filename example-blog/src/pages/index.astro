@@ -1,0 +1,307 @@
+---
+import { getCollection } from 'astro:content';
+import BaseHead from '../components/BaseHead.astro';
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import { SITE_DESCRIPTION, SITE_TITLE } from '../consts';
+
+const blogEntries = (await getCollection('blog')).sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+);
+const projectEntries = (await getCollection('project')).sort((a, b) => {
+  const aOrder = typeof a.data.order === 'number' ? a.data.order : 1000;
+  const bOrder = typeof b.data.order === 'number' ? b.data.order : 1000;
+  return aOrder - bOrder;
+});
+const snippetEntries = (await getCollection('snippet')).sort(
+  (a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+);
+
+const collectionConfigs = [
+  {
+    name: 'blog',
+    description: 'Blog posts with dates, image(), and override-driven fields.',
+    fields: [
+      'title',
+      'description',
+      'pubDate',
+      'updatedDate',
+      'heroImage',
+      'draft',
+      'featured',
+      'tags',
+      'readingMinutes',
+      'brandColor',
+      'coverAssetPath',
+    ],
+    entries: blogEntries.map((entry) => ({
+      id: entry.id,
+      data: entry.data as Record<string, unknown>,
+      body: entry.body,
+    })),
+  },
+  {
+    name: 'project',
+    description:
+      'Projects with array(image()), booleans, enum, number defaults, and custom image/color fields.',
+    fields: [
+      'title',
+      'description',
+      'order',
+      'showDemoInline',
+      'demoOrientation',
+      'screenshots',
+      'thumbnail',
+      'tags',
+      'demoUrl',
+      'repoUrl',
+      'isFeatured',
+      'accentColor',
+      'cardImagePath',
+    ],
+    entries: projectEntries.map((entry) => ({
+      id: entry.id,
+      data: entry.data as Record<string, unknown>,
+      body: entry.body,
+    })),
+  },
+  {
+    name: 'snippet',
+    description:
+      'Snippets with enums, dates, arrays, image(), and override-driven image/color fields.',
+    fields: [
+      'title',
+      'summary',
+      'language',
+      'publishedAt',
+      'updatedAt',
+      'minutes',
+      'difficulty',
+      'draft',
+      'tags',
+      'thumbnail',
+      'hexColor',
+      'previewPath',
+      'galleryPaths',
+    ],
+    entries: snippetEntries.map((entry) => ({
+      id: entry.id,
+      data: entry.data as Record<string, unknown>,
+      body: entry.body,
+    })),
+  },
+] as const;
+
+function toDisplayValue(value: unknown): string {
+  if (value === undefined) {
+    return '(unset)';
+  }
+
+  if (value === null) {
+    return 'null';
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return String(value);
+  }
+
+  return JSON.stringify(value, null, 2) ?? String(value);
+}
+
+function isStructuredValue(value: unknown): boolean {
+  if (value === null) {
+    return false;
+  }
+
+  return typeof value === 'object';
+}
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
+    <style>
+      .page-shell {
+        width: min(960px, calc(100% - 2rem));
+      }
+      .intro {
+        margin-bottom: 1.5rem;
+      }
+      .intro h1 {
+        margin-bottom: 0.35rem;
+      }
+      .intro p {
+        margin: 0;
+        color: rgb(var(--gray));
+      }
+      .collection {
+        margin-top: 1.5rem;
+      }
+      .collection-header h2 {
+        margin-bottom: 0.3rem;
+      }
+      .collection-header p {
+        margin: 0;
+        color: rgb(var(--gray));
+      }
+      .entry-list {
+        margin-top: 0.8rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+      }
+      .entry-card {
+        border: 1px solid rgb(var(--gray-light));
+        border-radius: 12px;
+        padding: 0.9rem;
+        background: rgba(255, 255, 255, 0.7);
+        box-sizing: border-box;
+        width: 100%;
+        overflow: hidden;
+      }
+      .entry-title {
+        margin: 0;
+        margin-bottom: 0.15rem;
+        font-size: 1.05rem;
+      }
+      .entry-id {
+        margin: 0;
+        color: rgb(var(--gray));
+        font-size: 0.85rem;
+      }
+      .field-list {
+        margin: 0.8rem 0 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 0.45rem;
+      }
+      .field-row {
+        display: grid;
+        grid-template-columns: 160px 1fr;
+        gap: 0.4rem;
+        align-items: start;
+      }
+      .field-name {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: rgb(var(--black));
+        padding-top: 0.3rem;
+      }
+      .field-value {
+        font-size: 0.8rem;
+        background: rgb(var(--gray-light));
+        border-radius: 8px;
+        padding: 0.35rem 0.45rem;
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        max-width: 100%;
+      }
+      .field-value.structured {
+        font-size: 0.75rem;
+      }
+      .body-preview {
+        margin-top: 0.6rem;
+      }
+      .body-preview summary {
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: rgb(var(--gray-dark));
+      }
+      .body-preview pre {
+        margin-top: 0.45rem;
+        white-space: pre-wrap;
+        max-height: 180px;
+        overflow: auto;
+        font-size: 0.75rem;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      @media (max-width: 720px) {
+        .field-row {
+          grid-template-columns: 1fr;
+          gap: 0.2rem;
+        }
+        .field-name {
+          padding-top: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <Header />
+    <main class="page-shell" id="inspector">
+      <section class="intro">
+        <h1>Example Content Inspector</h1>
+        <p>
+          This page renders all schema fields for every sample entry so you can
+          verify editor changes immediately.
+        </p>
+      </section>
+
+      {
+        collectionConfigs.map((collection) => (
+          <section class="collection">
+            <header class="collection-header">
+              <h2>
+                {collection.name} ({collection.entries.length})
+              </h2>
+              <p>{collection.description}</p>
+            </header>
+
+            <div class="entry-list">
+              {collection.entries.map((entry) => (
+                <article class="entry-card">
+                  <h3 class="entry-title">
+                    {typeof entry.data.title === 'string'
+                      ? entry.data.title
+                      : entry.id}
+                  </h3>
+                  <p class="entry-id">{entry.id}</p>
+
+                  <ul class="field-list">
+                    {collection.fields.map((fieldKey) => {
+                      const value = entry.data[fieldKey];
+                      const displayValue = toDisplayValue(value);
+                      const structured = isStructuredValue(value);
+                      return (
+                        <li class="field-row">
+                          <span class="field-name">{fieldKey}</span>
+                          <pre
+                            class:list={[
+                              'field-value',
+                              { structured },
+                            ]}
+                          >
+                            {displayValue}
+                          </pre>
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  <details class="body-preview">
+                    <summary>Body content</summary>
+                    <pre>{entry.body}</pre>
+                  </details>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))
+      }
+    </main>
+    <Footer />
+  </body>
+</html>

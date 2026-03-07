@@ -1,10 +1,39 @@
+import { z } from 'zod';
+
 type ObjectRecord = Record<string, unknown>;
 
-type JsonObjectSchema = {
-  type: 'object';
-  properties: ObjectRecord;
-  required?: unknown;
-};
+const recordSchema = z.record(z.string(), z.unknown());
+const jsonObjectSchema = z
+  .object({
+    type: z.literal('object'),
+    properties: recordSchema,
+    required: z.array(z.string()).optional(),
+  })
+  .passthrough();
+const propertySchema = z
+  .object({
+    type: z.string().optional(),
+    format: z.string().optional(),
+    enum: z.array(z.string()).optional(),
+    anyOf: z.array(recordSchema).optional(),
+    items: recordSchema.optional(),
+  })
+  .passthrough();
+
+type JsonObjectSchema = z.infer<typeof jsonObjectSchema>;
+type JsonPropertySchema = z.infer<typeof propertySchema>;
+
+export type FieldUiKind = 'image' | 'imageArray' | 'color';
+export type ImageFieldSourceMode = 'asset' | 'public';
+export type FieldUiConfig =
+  | {
+      kind: 'image' | 'imageArray';
+      mode: ImageFieldSourceMode;
+    }
+  | {
+      kind: 'color';
+    };
+export type FieldUiMap = Record<string, FieldUiConfig>;
 
 export type ResolvedField =
   | { kind: 'string'; key: string; required: boolean }
@@ -12,81 +41,78 @@ export type ResolvedField =
   | { kind: 'boolean'; key: string; required: boolean }
   | { kind: 'enum'; key: string; required: boolean; options: string[] }
   | { kind: 'stringArray'; key: string; required: boolean }
+  | {
+      kind: 'image';
+      key: string;
+      required: boolean;
+      sourceMode: ImageFieldSourceMode;
+    }
+  | {
+      kind: 'imageArray';
+      key: string;
+      required: boolean;
+      sourceMode: ImageFieldSourceMode;
+    }
+  | { kind: 'color'; key: string; required: boolean }
   | { kind: 'dateAnyOf'; key: string; required: boolean }
   | { kind: 'unsupported'; key: string; required: boolean; reason: string };
 
 const ASTRO_DEF_PREFIX = '#/definitions/';
 
 function asRecord(value: unknown): ObjectRecord | undefined {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return undefined;
-  }
-
-  return value as ObjectRecord;
+  const parsed = recordSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }
 
-function asStringArray(value: unknown): string[] | undefined {
-  if (
-    !Array.isArray(value) ||
-    !value.every((item) => typeof item === 'string')
-  ) {
-    return undefined;
-  }
-
-  return value;
+function parsePropertySchema(value: unknown): JsonPropertySchema | undefined {
+  const parsed = propertySchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }
 
 function asObjectSchema(value: unknown): JsonObjectSchema | undefined {
-  const record = asRecord(value);
-  if (!record || record.type !== 'object') {
-    return undefined;
-  }
-
-  const properties = asRecord(record.properties);
-  if (!properties) {
-    return undefined;
-  }
-
-  return {
-    type: 'object',
-    properties,
-    required: record.required,
-  };
+  const parsed = jsonObjectSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }
 
-function isDateAnyOfSchema(schema: ObjectRecord): boolean {
-  if (!Array.isArray(schema.anyOf) || schema.anyOf.length === 0) {
+function isStringArraySchema(schema: JsonPropertySchema): boolean {
+  if (schema.type !== 'array') {
+    return false;
+  }
+
+  const itemSchema = parsePropertySchema(schema.items);
+  return itemSchema?.type === 'string';
+}
+
+function isDateAnyOfSchema(schema: JsonPropertySchema): boolean {
+  if (!schema.anyOf || schema.anyOf.length === 0) {
     return false;
   }
 
   let hasDateOption = false;
 
   for (const option of schema.anyOf) {
-    const candidate = asRecord(option);
+    const candidate = parsePropertySchema(option);
     if (!candidate) {
       return false;
     }
 
-    const candidateType = candidate.type;
-    const candidateFormat = candidate.format;
-
     if (
-      candidateType === 'string' &&
-      (candidateFormat === 'date' || candidateFormat === 'date-time')
+      candidate.type === 'string' &&
+      (candidate.format === 'date' || candidate.format === 'date-time')
     ) {
       hasDateOption = true;
       continue;
     }
 
     if (
-      (candidateType === 'integer' || candidateType === 'number') &&
-      candidateFormat === 'unix-time'
+      (candidate.type === 'integer' || candidate.type === 'number') &&
+      candidate.format === 'unix-time'
     ) {
       hasDateOption = true;
       continue;
     }
 
-    if (candidateType === 'null') {
+    if (candidate.type === 'null') {
       continue;
     }
 
@@ -97,8 +123,51 @@ function isDateAnyOfSchema(schema: ObjectRecord): boolean {
 }
 
 function resolveRequiredFields(required: unknown): Set<string> {
-  const requiredList = asStringArray(required) ?? [];
-  return new Set(requiredList);
+  const parsed = z.array(z.string()).safeParse(required);
+  return new Set(parsed.success ? parsed.data : []);
+}
+
+function resolveCustomFieldKind(params: {
+  key: string;
+  property: JsonPropertySchema;
+  required: boolean;
+  fieldUi: FieldUiMap | undefined;
+}): ResolvedField | undefined {
+  const customKind = params.fieldUi?.[params.key];
+  if (!customKind) {
+    return undefined;
+  }
+
+  if (customKind.kind === 'image' && params.property.type === 'string') {
+    return {
+      kind: 'image',
+      key: params.key,
+      required: params.required,
+      sourceMode: customKind.mode,
+    };
+  }
+
+  if (
+    customKind.kind === 'imageArray' &&
+    isStringArraySchema(params.property)
+  ) {
+    return {
+      kind: 'imageArray',
+      key: params.key,
+      required: params.required,
+      sourceMode: customKind.mode,
+    };
+  }
+
+  if (customKind.kind === 'color' && params.property.type === 'string') {
+    return {
+      kind: 'color',
+      key: params.key,
+      required: params.required,
+    };
+  }
+
+  return undefined;
 }
 
 export function resolveAstroObjectSchema(
@@ -125,7 +194,10 @@ export function resolveAstroObjectSchema(
   return asObjectSchema(definitionSchema);
 }
 
-export function resolveSchemaFields(schema: JsonObjectSchema): ResolvedField[] {
+export function resolveSchemaFields(
+  schema: JsonObjectSchema,
+  fieldUi?: FieldUiMap,
+): ResolvedField[] {
   const requiredFields = resolveRequiredFields(schema.required);
   const fields: ResolvedField[] = [];
 
@@ -134,10 +206,10 @@ export function resolveSchemaFields(schema: JsonObjectSchema): ResolvedField[] {
       continue;
     }
 
-    const propertySchema = asRecord(rawPropertySchema);
+    const parsedProperty = parsePropertySchema(rawPropertySchema);
     const isRequired = requiredFields.has(key);
 
-    if (!propertySchema) {
+    if (!parsedProperty) {
       fields.push({
         kind: 'unsupported',
         key,
@@ -147,29 +219,40 @@ export function resolveSchemaFields(schema: JsonObjectSchema): ResolvedField[] {
       continue;
     }
 
-    if (isDateAnyOfSchema(propertySchema)) {
+    const customField = resolveCustomFieldKind({
+      key,
+      property: parsedProperty,
+      required: isRequired,
+      fieldUi,
+    });
+    if (customField) {
+      fields.push(customField);
+      continue;
+    }
+
+    if (isDateAnyOfSchema(parsedProperty)) {
       fields.push({ kind: 'dateAnyOf', key, required: isRequired });
       continue;
     }
 
     if (
-      propertySchema.type === 'string' &&
-      (propertySchema.format === 'date' ||
-        propertySchema.format === 'date-time')
+      parsedProperty.type === 'string' &&
+      (parsedProperty.format === 'date' ||
+        parsedProperty.format === 'date-time')
     ) {
       fields.push({ kind: 'dateAnyOf', key, required: isRequired });
       continue;
     }
 
     if (
-      (propertySchema.type === 'number' || propertySchema.type === 'integer') &&
-      propertySchema.format === 'unix-time'
+      (parsedProperty.type === 'number' || parsedProperty.type === 'integer') &&
+      parsedProperty.format === 'unix-time'
     ) {
       fields.push({ kind: 'dateAnyOf', key, required: isRequired });
       continue;
     }
 
-    const enumValues = asStringArray(propertySchema.enum);
+    const enumValues = parsedProperty.enum;
     if (enumValues && enumValues.length > 0) {
       fields.push({
         kind: 'enum',
@@ -180,33 +263,33 @@ export function resolveSchemaFields(schema: JsonObjectSchema): ResolvedField[] {
       continue;
     }
 
-    if (propertySchema.type === 'string') {
+    if (parsedProperty.type === 'string') {
       fields.push({ kind: 'string', key, required: isRequired });
       continue;
     }
 
-    if (propertySchema.type === 'boolean') {
+    if (parsedProperty.type === 'boolean') {
       fields.push({ kind: 'boolean', key, required: isRequired });
       continue;
     }
 
-    if (propertySchema.type === 'number' || propertySchema.type === 'integer') {
+    if (parsedProperty.type === 'number' || parsedProperty.type === 'integer') {
       fields.push({ kind: 'number', key, required: isRequired });
       continue;
     }
 
-    if (propertySchema.type === 'array') {
-      const itemSchema = asRecord(propertySchema.items);
-      if (itemSchema?.type === 'string') {
-        fields.push({ kind: 'stringArray', key, required: isRequired });
-      } else {
-        fields.push({
-          kind: 'unsupported',
-          key,
-          required: isRequired,
-          reason: 'array items are not string',
-        });
-      }
+    if (isStringArraySchema(parsedProperty)) {
+      fields.push({ kind: 'stringArray', key, required: isRequired });
+      continue;
+    }
+
+    if (parsedProperty.type === 'array') {
+      fields.push({
+        kind: 'unsupported',
+        key,
+        required: isRequired,
+        reason: 'array items are not string',
+      });
       continue;
     }
 

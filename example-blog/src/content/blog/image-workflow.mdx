@@ -1,0 +1,22 @@
+---
+title: 'Image Workflow Notes'
+description: 'How image(), src-relative paths, and public paths behave in the editor sample.'
+pubDate: '2026-01-28'
+heroImage: '../../assets/blog-placeholder-2.jpg'
+draft: false
+featured: false
+tags:
+  - images
+  - mdx
+readingMinutes: 4
+brandColor: '#0F766E'
+coverAssetPath: '/images/card-bg.jpg'
+---
+
+## Why both `heroImage` and `coverAssetPath`?
+
+`heroImage` is defined with `image()` in `content.config.ts`.
+
+`coverAssetPath` is just a `string`, but the editor can still treat it as an image field through overrides.
+
+This is useful when your runtime schema must stay generic.
