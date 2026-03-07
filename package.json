@@ -1,12 +1,22 @@
 {
   "name": "astro-md-editor",
-  "private": true,
+  "version": "0.0.1",
+  "private": false,
   "type": "module",
+  "bin": {
+    "astro-md-editor": "./index.mjs"
+  },
+  "files": [
+    ".output/",
+    "index.mjs",
+    "scripts/bootstrap-collections.mjs",
+    "README.md"
+  ],
   "imports": {
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "node scripts/dev.mjs --port 3000",
+    "dev": "node scripts/dev.mjs --path example-blog --port 3000",
     "build": "vite build",
     "start": "node index.mjs",
     "preview": "vite preview",

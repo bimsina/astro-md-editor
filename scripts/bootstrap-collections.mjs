@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { z } from 'zod';
 
 const ROOT_ENV_KEY = 'APP_ROOT_PATH';
-const DEFAULT_ROOT_PATH = 'example-blog';
+const DEFAULT_ROOT_PATH = '.';
 const COLLECTIONS_RELATIVE_PATH_PREFIX = '.astro/collections/';
 const CONTENT_RELATIVE_PATH_PREFIX = 'src/content/';
 const CONTENT_CONFIG_CANDIDATES = [
@@ -268,10 +268,18 @@ function loadDotenv(cwd, mode, env) {
 }
 
 function parseRootPathArg(argv) {
-  let cliPath;
+  let positionalPath;
+  let flagPath;
   const forwardArgs = [];
 
-  for (let i = 0; i < argv.length; i += 1) {
+  let startIndex = 0;
+  const firstArg = argv[0];
+  if (typeof firstArg === 'string' && !firstArg.startsWith('-')) {
+    positionalPath = firstArg;
+    startIndex = 1;
+  }
+
+  for (let i = startIndex; i < argv.length; i += 1) {
     const arg = argv[i];
 
     if (arg === '--path') {
@@ -279,7 +287,7 @@ function parseRootPathArg(argv) {
       if (!value) {
         throw new Error('Missing value for --path.');
       }
-      cliPath = value;
+      flagPath = value;
       i += 1;
       continue;
     }
@@ -289,14 +297,17 @@ function parseRootPathArg(argv) {
       if (!value) {
         throw new Error('Missing value for --path.');
       }
-      cliPath = value;
+      flagPath = value;
       continue;
     }
 
     forwardArgs.push(arg);
   }
 
-  return { cliPath, forwardArgs };
+  return {
+    cliPath: positionalPath ?? flagPath,
+    forwardArgs,
+  };
 }
 
 function hasSupportedContentExtension(filePath) {

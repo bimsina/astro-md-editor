@@ -1,20 +1,67 @@
 # Astro MD Editor
+[![npm version](https://img.shields.io/npm/v/astro-md-editor.svg)](https://www.npmjs.com/package/astro-md-editor)
 
-Astro MD Editor is a schema-aware frontend for editing Astro markdown content collections.
+Editor UI for Astro content collections (`src/content`) with schema-aware frontmatter editing and markdown body editing.
 
-It loads an Astro project's generated collection schemas, provides structured frontmatter editing plus markdown content writing, validates drafts with AJV, and writes updates back to source files.
+## Run
 
-## What the app does
+```bash
+npx astro-md-editor
+```
 
-- Reads collection schemas from `.astro/collections/*.schema.json`.
-- Builds entry lists by scanning `src/content/<collection>/**/*.{md,mdx,markdown}`.
-- Builds an editor UI from schema fields (`string`, `number`, `boolean`, `enum`, `date`, arrays).
-- Supports writing and updating markdown/MDX body content in the same editor flow.
-- Supports image-focused controls:
-  - native `image()` and `z.array(image())` inference from `src/content.config.*`
-  - image asset picker from both `src` and `public`
-- Supports custom field controls through override config (currently `image` and `color`).
-- Validates frontmatter edits with AJV before save and persists both frontmatter + body updates.
+```bash
+pnpm dlx astro-md-editor
+# or
+pnpx astro-md-editor
+```
+
+### Target project path
+
+```bash
+# positional
+npx astro-md-editor /absolute/path/to/astro-project
+
+# flag
+npx astro-md-editor --path /absolute/path/to/astro-project
+```
+
+Path resolution order:
+
+1. positional CLI arg (`astro-md-editor <astro-project-root>`)
+2. `--path=<astro-project-root>`
+3. `APP_ROOT_PATH`
+4. current working directory
+
+### Port
+
+```bash
+PORT=1234 npx astro-md-editor
+# or
+NITRO_PORT=1234 npx astro-md-editor
+```
+
+The runtime reads `PORT`/`NITRO_PORT` for server port.
+
+## Requirements
+
+- Astro project with collections in `src/content`.
+- Collection schemas available in `.astro/collections/*.schema.json`.
+
+If schema files are missing, run:
+
+```bash
+astro sync
+```
+
+## Features
+
+- Reads `.astro/collections/*.schema.json`.
+- Scans `src/content/<collection>/**/*.{md,mdx,markdown}`.
+- Renders controls for schema fields (`string`, `number`, `boolean`, `enum`, `date`, arrays).
+- Edits frontmatter and markdown/MDX body in one flow.
+- Validates frontmatter with AJV before save.
+- Supports image field inference from `src/content.config.*` (`image()`, `z.array(image())`).
+- Supports image pickers for both `src` assets and `public` assets.
 
 ## Local development
 
@@ -22,31 +69,19 @@ It loads an Astro project's generated collection schemas, provides structured fr
 pnpm dev
 ```
 
-Path resolution order:
+`pnpm dev` uses `--path example-blog --port 3000`.
 
-1. `--path=<astro-project-root>` CLI argument
-2. `APP_ROOT_PATH` environment variable
-3. fallback to `example-blog` in this repository
+Run dev against another project:
 
-So if you do not pass `--path` and do not set `APP_ROOT_PATH`, local dev opens `example-blog` by default.
+```bash
+node scripts/dev.mjs /absolute/path/to/astro-project --port 3000
+```
 
-If no schema files are present in `.astro/collections` during dev startup, the launcher runs `astro sync` in the selected Astro project and then continues with schema + content-directory discovery.
+In dev mode, if schema files are missing, startup runs `astro sync` automatically for the selected project.
 
-## Example project
+## Field overrides
 
-`example-blog` is included as a sample Astro project for editor development.
-
-It contains multiple collections with mixed field types:
-
-- `blog`
-- `project`
-- `snippet`
-
-and includes content entries using dates, enums, booleans, arrays, `image()`, `z.array(image())`, and override-driven fields.
-
-## Custom field overrides
-
-Add an `astro-md-editor.fields.json` file at the target Astro project root.
+Create `astro-md-editor.fields.json` at the Astro project root.
 
 Example:
 
@@ -64,23 +99,21 @@ Example:
 
 Rules:
 
-- `type` supports: `image`, `color`
-- for `type: "image"`, optional `mode` supports:
-  - `asset` (default): use `src` assets only (`./` / `../` paths)
-  - `public`: use `public` assets only (`/path` values)
-- optional `multiple: true` enables array-style image UX
-- top-level shape is `{ [collectionName]: { [fieldName]: override } }`
+- `type`: `image` or `color`
+- for `type: "image"`, optional `mode`: `asset` (default) or `public`
+- for `type: "image"`, optional `multiple: true` for array-style image input
+- shape: `{ [collectionName]: { [fieldName]: override } }`
 
 Precedence:
 
-1. overrides from `astro-md-editor.fields.json`
-2. inferred `image()`/`array(image())` from content config
-3. fallback schema-based type rendering
+1. `astro-md-editor.fields.json` overrides
+2. inferred `image()` / `array(image())` from content config
+3. schema-based fallback rendering
 
 Invalid or incompatible overrides are ignored with bootstrap warnings.
 
 ## Notes
 
-- Public assets are inserted as `/path/from/public`.
-- Source assets are inserted as explicit relative paths from the content file (`./...` or `../...`).
-- Current custom controls target top-level frontmatter fields.
+- `public` assets are saved as `/path/from/public`.
+- `src` assets are saved as relative paths from the content file (`./...` or `../...`).
+- Custom controls currently target top-level frontmatter fields.
