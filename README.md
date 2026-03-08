@@ -2,38 +2,36 @@
 
 [![npm version](https://img.shields.io/npm/v/astro-md-editor.svg)](https://www.npmjs.com/package/astro-md-editor)
 
-Editor UI for Astro content collections (`src/content`) with schema-aware frontmatter editing and markdown body editing.
+Schema-aware editor for Astro content collections. It lets you edit frontmatter and markdown/MDX together, validates on save, and can reuse values from file Git history.
 
-## Run
+https://github.com/user-attachments/assets/7f38b6a4-fe1a-4e30-80c8-19a58aa860f1
+
+## Quick start
 
 ```bash
 npx astro-md-editor
-```
-
-```bash
-pnpm dlx astro-md-editor
 # or
-pnpx astro-md-editor
+pnpm dlx astro-md-editor
 ```
 
-### Target project path
+By default, it targets the current directory.
+
+Target a specific Astro project:
 
 ```bash
-# positional
-npx astro-md-editor /absolute/path/to/astro-project
-
-# flag
-npx astro-md-editor --path /absolute/path/to/astro-project
+astro-md-editor /absolute/path/to/astro-project
+# or
+astro-md-editor --path /absolute/path/to/astro-project
 ```
 
-Path resolution order:
+Root resolution order:
 
-1. positional CLI arg (`astro-md-editor <astro-project-root>`)
-2. `--path=<astro-project-root>`
+1. positional argument (`astro-md-editor <astro-project-root>`)
+2. `--path`
 3. `APP_ROOT_PATH`
 4. current working directory
 
-### Port
+Port can be set with `PORT` or `NITRO_PORT`.
 
 ```bash
 PORT=1234 npx astro-md-editor
@@ -41,54 +39,29 @@ PORT=1234 npx astro-md-editor
 NITRO_PORT=1234 npx astro-md-editor
 ```
 
-The runtime reads `PORT`/`NITRO_PORT` for server port.
-
 ## Requirements
 
-- Astro project with collections in `src/content`.
-- Collection schemas available in `.astro/collections/*.schema.json`.
+- Astro project with collections under `src/content`
+- Generated collection schemas in `.astro/collections/*.schema.json`
 
-If schema files are missing, run:
+If schema files are missing, run in the target project:
 
 ```bash
 astro sync
 ```
 
-## Features
+## Highlights
 
-- Reads `.astro/collections/*.schema.json`.
-- Scans `src/content/<collection>/**/*.{md,mdx,markdown}`.
-- Renders controls for schema fields (`string`, `number`, `boolean`, `enum`, `date`, arrays).
-- Edits frontmatter and markdown/MDX body in one flow.
-- Validates frontmatter with AJV before save.
-- Supports image field inference from `src/content.config.*` (`image()`, `z.array(image())`).
-- Supports image pickers for both `src` assets and `public` assets.
-- Includes a per-file Git History tab in the right sidebar (timeline-style commit list).
-- Shows commit message, author, and time; expands each item to inspect revision frontmatter.
-- Can apply a selected revision into the current draft with schema-safe frontmatter reapply (incompatible keys are skipped).
-- Applying history updates only the in-editor draft; normal Save flow still controls disk writes.
+- Reads collection schemas and content files (`.md`, `.mdx`, `.markdown`)
+- Renders schema-aware controls (`string`, `number`, `boolean`, `enum`, `date`, arrays)
+- Validates frontmatter with AJV before saving
+- Infers image fields from `src/content.config.*` (`image()` / `z.array(image())`)
+- Supports image pickers for both `src` assets and `public` assets
+- Shows per-file Git history and applies selected revision values to the current draft safely
 
-## Local development
+## Field overrides (optional)
 
-```bash
-pnpm dev
-```
-
-`pnpm dev` uses `--path example-blog --port 3000`.
-
-Run dev against another project:
-
-```bash
-node scripts/dev.mjs /absolute/path/to/astro-project --port 3000
-```
-
-In dev mode, startup always runs `astro sync` for the selected project before loading collections.
-
-## Field overrides
-
-Create `astro-md-editor.fields.json` at the Astro project root.
-
-Example:
+Create `astro-md-editor.fields.json` at the Astro project root to force specific UI controls.
 
 ```json
 {
@@ -104,32 +77,20 @@ Example:
 }
 ```
 
-Rules:
+Supported override types:
 
-- `type`: `image`, `color`, or `icon`
-- for `type: "image"`, optional `mode`: `asset` (default) or `public`
-- for `type: "image"`, optional `multiple: true` for array-style image input
-- for `type: "icon"`, optional `icon_libraries: string[]` to restrict picker libraries by Iconify prefix
-- shape: `{ [collectionName]: { [fieldName]: override } }`
+- `image` (`mode: "asset" | "public"`, optional `multiple: true`)
+- `color`
+- `icon` (optional `icon_libraries: string[]`)
 
-Precedence:
+Precedence: `astro-md-editor.fields.json` > inferred `image()` fields > schema defaults.
 
-1. `astro-md-editor.fields.json` overrides
-2. inferred `image()` / `array(image())` from content config
-3. schema-based fallback rendering
-
-Invalid or incompatible overrides are ignored with bootstrap warnings.
-
-### Example blog demo
-
-`example-blog` includes icon override samples in the `blog` collection:
-
-- `menuIconFiltered`: icon picker restricted to `lucide` and `mdi`
-- `menuIconAny`: icon picker with all Iconify libraries
+Invalid or schema-incompatible overrides are ignored with startup warnings.
 
 ## Notes
 
-- `public` assets are saved as `/path/from/public`.
-- `src` assets are saved as relative paths from the content file (`./...` or `../...`).
-- `icon` values are saved as Iconify strings like `lucide:messages-square`.
-- Custom controls currently target top-level frontmatter fields.
+- Applying Git history updates the in-editor draft only; files are written only on normal Save
+- `public` assets are saved as `/path/from/public`
+- `src` assets are saved relative to the edited content file (`./...` or `../...`)
+- Icon values are saved as Iconify IDs (for example `lucide:messages-square`)
+- Custom controls currently target top-level frontmatter fields
