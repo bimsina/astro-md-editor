@@ -56,7 +56,7 @@ function RootDocument({ children }: { children: ReactNode }) {
             {children}
           </CollectionsDataProvider>
 
-          <Toaster/>
+          <Toaster />
         </TooltipProvider>
         <TanStackDevtools
           config={{

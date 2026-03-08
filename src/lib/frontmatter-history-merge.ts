@@ -25,7 +25,9 @@ function cloneRecord<T extends ObjectRecord>(value: T): T {
 }
 
 function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === 'string')
+  );
 }
 
 function isCompatibleValue(field: ResolvedField, value: unknown): boolean {
@@ -33,6 +35,7 @@ function isCompatibleValue(field: ResolvedField, value: unknown): boolean {
     case 'string':
     case 'image':
     case 'color':
+    case 'icon':
       return typeof value === 'string';
     case 'number':
       return typeof value === 'number' && Number.isFinite(value);
@@ -138,9 +141,7 @@ export function applyRevisionFrontmatter(params: {
       continue;
     }
 
-    nextDraft[key] = Array.isArray(value)
-      ? [...value]
-      : value;
+    nextDraft[key] = Array.isArray(value) ? [...value] : value;
     appliedKeys.push(key);
   }
 

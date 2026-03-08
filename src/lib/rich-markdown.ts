@@ -1,5 +1,5 @@
 import { marked } from 'marked';
-import TurndownService from 'turndown';
+import TurndownService from 'turndown/lib/turndown.cjs.js';
 import { gfm } from 'turndown-plugin-gfm';
 
 const turndownService = new TurndownService({

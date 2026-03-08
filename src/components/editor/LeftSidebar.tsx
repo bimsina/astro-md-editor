@@ -189,7 +189,9 @@ export default function LeftSidebar({
           await onCreateFile(rawSlug);
         }}
       >
-        {isCreatingFile ? <Loader2Icon className="size-4 animate-spin" /> : null}
+        {isCreatingFile ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : null}
         New file
       </Button>
 
@@ -209,9 +211,11 @@ export default function LeftSidebar({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!deletingFileId}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={!!deletingFileId}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
-              variant={"destructive"}
+              variant={'destructive'}
               disabled={!deleteCandidate || !!deletingFileId}
               onClick={async () => {
                 if (!deleteCandidate) {

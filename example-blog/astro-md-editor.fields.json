@@ -1,7 +1,12 @@
 {
   "blog": {
     "brandColor": { "type": "color" },
-    "coverAssetPath": { "type": "image", "mode": "public" }
+    "coverAssetPath": { "type": "image", "mode": "public" },
+    "menuIconFiltered": {
+      "type": "icon",
+      "icon_libraries": ["lucide", "mdi"]
+    },
+    "menuIconAny": { "type": "icon" }
   },
   "project": {
     "accentColor": { "type": "color" },

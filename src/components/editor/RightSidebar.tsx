@@ -20,13 +20,9 @@ import {
   SelectValue,
 } from '#/components/ui/select';
 import { Switch } from '#/components/ui/switch';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '#/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs';
 import { ImageAssetPickerPopover } from '#/components/editor/ImageAssetBrowser';
+import { IconPickerPopover } from '#/components/editor/IconPickerPopover';
 import { fromDateTimeLocalToIso, toDateTimeLocalValue } from '#/lib/datetime';
 import type {
   CollectionData,
@@ -36,7 +32,10 @@ import {
   listFileHistoryServerFn,
   readFileRevisionServerFn,
 } from '#/lib/file-history.api';
-import type { FileRevisionPayload, HistoryCommit } from '#/lib/file-history.server';
+import type {
+  FileRevisionPayload,
+  HistoryCommit,
+} from '#/lib/file-history.server';
 import { getLocalImagePreviewServerFn } from '#/lib/image-preview.api';
 import { applyRevisionFrontmatter } from '#/lib/frontmatter-history-merge';
 import {
@@ -144,6 +143,43 @@ function normalizeHexColor(value: string): string {
 
 function isHexColor(value: string): boolean {
   return HEX_COLOR_REGEX.test(value);
+}
+
+function parseIconifyName(
+  value: string,
+): { prefix: string; name: string } | undefined {
+  const normalized = value.trim();
+  const separatorIndex = normalized.indexOf(':');
+  if (separatorIndex <= 0 || separatorIndex === normalized.length - 1) {
+    return undefined;
+  }
+
+  return {
+    prefix: normalized.slice(0, separatorIndex).toLowerCase(),
+    name: normalized.slice(separatorIndex + 1),
+  };
+}
+
+function buildIconPreviewUrl(iconifyName: string): string | undefined {
+  const parsed = parseIconifyName(iconifyName);
+  if (!parsed) {
+    return undefined;
+  }
+
+  return `https://api.iconify.design/${encodeURIComponent(parsed.prefix)}/${encodeURIComponent(parsed.name)}.svg?width=24&height=24`;
+}
+
+function getIconMaskStyle(iconUrl: string): React.CSSProperties {
+  return {
+    maskImage: `url("${iconUrl}")`,
+    maskRepeat: 'no-repeat',
+    maskPosition: 'center',
+    maskSize: 'contain',
+    WebkitMaskImage: `url("${iconUrl}")`,
+    WebkitMaskRepeat: 'no-repeat',
+    WebkitMaskPosition: 'center',
+    WebkitMaskSize: 'contain',
+  };
 }
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => padTwo(index));
@@ -279,7 +315,10 @@ function FrontmatterImagePreviewGrid({
 
   return (
     <div
-      className={cn('grid gap-2', columns === 1 ? 'grid-cols-1' : 'grid-cols-2')}
+      className={cn(
+        'grid gap-2',
+        columns === 1 ? 'grid-cols-1' : 'grid-cols-2',
+      )}
     >
       {items.map((item, index) => (
         <div
@@ -290,7 +329,10 @@ function FrontmatterImagePreviewGrid({
             <img
               src={item.previewUrl}
               alt={item.sourcePath}
-              className={cn('w-full object-cover', columns === 1 ? 'h-44' : 'h-28')}
+              className={cn(
+                'w-full object-cover',
+                columns === 1 ? 'h-44' : 'h-28',
+              )}
             />
           ) : item.loading ? (
             <div
@@ -315,14 +357,13 @@ function FrontmatterImagePreviewGrid({
           {onRemoveAt ? (
             <button
               type="button"
-              className="bg-background/85 text-foreground absolute top-2 right-2 inline-flex size-6 items-center justify-center rounded-full opacity-0 shadow-sm transition-opacity hover:opacity-100 group-hover:opacity-100"
+              className="bg-background/85 text-foreground absolute top-2 right-2 inline-flex size-6 items-center justify-center rounded-full opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:opacity-100"
               onClick={() => onRemoveAt(index)}
               aria-label={`Remove image ${item.sourcePath}`}
             >
               <XIcon className="size-3.5" />
             </button>
           ) : null}
-
         </div>
       ))}
     </div>
@@ -803,6 +844,63 @@ function ColorField({
   );
 }
 
+function IconField({
+  fieldKey,
+  value,
+  iconLibraries,
+  onChange,
+  onBlur,
+}: {
+  fieldKey: string;
+  value: unknown;
+  iconLibraries?: string[];
+  onChange: (value: string | undefined) => void;
+  onBlur: () => void;
+}) {
+  const stringValue = typeof value === 'string' ? value : '';
+  const previewUrl = buildIconPreviewUrl(stringValue);
+
+  return (
+    <div className="flex gap-2">
+      <Input
+        id={fieldKey}
+        className={SUBTLE_FIELD_CLASS}
+        value={stringValue}
+        onChange={(event) => {
+          const nextRaw = event.target.value;
+          onChange(nextRaw.length > 0 ? nextRaw : undefined);
+        }}
+        onBlur={onBlur}
+        placeholder="lucide:messages-square"
+      />
+
+      <IconPickerPopover
+        triggerClassName="border-border/50 bg-muted/45 hover:bg-muted/60 focus-visible:ring-ring/35 size-8 shrink-0 rounded-md border p-0 shadow-none focus-visible:ring-2"
+        triggerAriaLabel={`${fieldKey} icon picker`}
+        triggerContent={
+          previewUrl ? (
+            <span
+              aria-hidden="true"
+              className="text-foreground size-3 shrink-0 bg-current"
+              style={getIconMaskStyle(previewUrl)}
+            />
+          ) : (
+            <span className="text-muted-foreground text-[10px] font-medium">
+              icon
+            </span>
+          )
+        }
+        selectedIcon={stringValue}
+        allowedLibraries={iconLibraries}
+        onSelectIcon={(nextIcon) => {
+          onChange(nextIcon);
+          onBlur();
+        }}
+      />
+    </div>
+  );
+}
+
 function FieldErrorList({
   fieldKey,
   errors,
@@ -877,9 +975,8 @@ export default function RightSidebar({
   const [historyNextCursor, setHistoryNextCursor] = React.useState<
     string | undefined
   >();
-  const [historyUnavailableReason, setHistoryUnavailableReason] = React.useState<
-    string | undefined
-  >();
+  const [historyUnavailableReason, setHistoryUnavailableReason] =
+    React.useState<string | undefined>();
   const [historyError, setHistoryError] = React.useState<string | undefined>();
   const [historyLoading, setHistoryLoading] = React.useState(false);
   const [historyLoadingMore, setHistoryLoadingMore] = React.useState(false);
@@ -890,7 +987,9 @@ export default function RightSidebar({
     FileRevisionPayload | undefined
   >();
   const [revisionLoading, setRevisionLoading] = React.useState(false);
-  const [revisionError, setRevisionError] = React.useState<string | undefined>();
+  const [revisionError, setRevisionError] = React.useState<
+    string | undefined
+  >();
   const [applySummary, setApplySummary] = React.useState<string | undefined>();
   const [activeTab, setActiveTab] = React.useState<'frontmatter' | 'history'>(
     'frontmatter',
@@ -1129,11 +1228,15 @@ export default function RightSidebar({
             setActiveTab(value);
           }
         }}
-        className="h-full min-h-0 gap-3 w-full"
+        className="h-full min-h-0 w-full gap-3"
       >
-        <TabsList className={"w-full"}>
-          <TabsTrigger value="frontmatter" className={"text-xs"}>Frontmatter</TabsTrigger>
-          <TabsTrigger value="history" className={"text-xs"}>History</TabsTrigger>
+        <TabsList className={'w-full'}>
+          <TabsTrigger value="frontmatter" className={'text-xs'}>
+            Frontmatter
+          </TabsTrigger>
+          <TabsTrigger value="history" className={'text-xs'}>
+            History
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="frontmatter" className="min-h-0 overflow-auto pr-1">
@@ -1192,6 +1295,18 @@ export default function RightSidebar({
                   <ColorField
                     fieldKey={field.key}
                     value={value}
+                    onChange={(nextValue) => {
+                      setFieldValue(field.key, nextValue);
+                    }}
+                    onBlur={() => handleFieldBlur(field.key)}
+                  />
+                )}
+
+                {field.kind === 'icon' && (
+                  <IconField
+                    fieldKey={field.key}
+                    value={value}
+                    iconLibraries={field.iconLibraries}
                     onChange={(nextValue) => {
                       setFieldValue(field.key, nextValue);
                     }}
@@ -1313,14 +1428,19 @@ export default function RightSidebar({
           ) : null}
         </TabsContent>
 
-        <TabsContent value="history" className="min-h-0 space-y-2 overflow-auto pr-1">
+        <TabsContent
+          value="history"
+          className="min-h-0 space-y-2 overflow-auto pr-1"
+        >
           <div className="flex justify-end">
             <Button
               type="button"
               size="sm"
               variant="ghost"
               className="h-7 px-2 text-xs"
-              disabled={historyLoading || historyLoadingMore || !selectedFilePath}
+              disabled={
+                historyLoading || historyLoadingMore || !selectedFilePath
+              }
               onClick={() => {
                 void loadHistory(undefined, false);
               }}
@@ -1341,7 +1461,10 @@ export default function RightSidebar({
             </p>
           ) : null}
 
-          {!historyUnavailableReason && !historyError && historyLoading && historyCommits.length === 0 ? (
+          {!historyUnavailableReason &&
+          !historyError &&
+          historyLoading &&
+          historyCommits.length === 0 ? (
             <p className="text-muted-foreground flex items-center gap-1.5 px-1 py-1 text-xs">
               <Loader2Icon className="size-3.5 animate-spin" />
               Loading history...
@@ -1382,7 +1505,8 @@ export default function RightSidebar({
                         {commitTitle}
                       </p>
                       <p className="text-muted-foreground mt-0.5 text-[11px]">
-                        {commit.author} · {formatHistoryDateTime(commit.dateIso)}
+                        {commit.author} ·{' '}
+                        {formatHistoryDateTime(commit.dateIso)}
                       </p>
                     </button>
 
@@ -1401,22 +1525,29 @@ export default function RightSidebar({
                           </p>
                         ) : null}
 
-                        {!revisionLoading && !revisionError && selectedRevision ? (
+                        {!revisionLoading &&
+                        !revisionError &&
+                        selectedRevision ? (
                           <div className="space-y-2">
                             {selectedRevision.parseWarnings.length > 0 ? (
-                              <div className="bg-amber-100/70 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200 rounded-md px-2 py-1.5 text-[11px]">
+                              <div className="rounded-md bg-amber-100/70 px-2 py-1.5 text-[11px] text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
                                 {selectedRevision.parseWarnings[0]}
                               </div>
                             ) : null}
                             <pre className="bg-muted/55 max-h-40 overflow-auto rounded-md px-2 py-1.5 text-[11px] leading-relaxed whitespace-pre-wrap">
-                              {Object.keys(selectedRevision.frontmatter).length > 0
-                                ? JSON.stringify(selectedRevision.frontmatter, null, 2)
+                              {Object.keys(selectedRevision.frontmatter)
+                                .length > 0
+                                ? JSON.stringify(
+                                    selectedRevision.frontmatter,
+                                    null,
+                                    2,
+                                  )
                                 : '[No frontmatter]'}
                             </pre>
                             <Button
                               type="button"
                               size="sm"
-                              variant={"outline"}
+                              variant={'outline'}
                               className="h-7 w-full text-xs"
                               onClick={handleApplyHistoryRevision}
                             >

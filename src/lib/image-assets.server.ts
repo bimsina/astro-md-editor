@@ -208,7 +208,9 @@ export async function readImagePreviewBySourcePath(params: {
   }
 
   if (isRemoteSourcePath(normalizedSourcePath)) {
-    throw new Error('Remote image URLs are not resolved through local preview.');
+    throw new Error(
+      'Remote image URLs are not resolved through local preview.',
+    );
   }
 
   const currentFileAbsolutePath = resolve(params.currentFilePath);

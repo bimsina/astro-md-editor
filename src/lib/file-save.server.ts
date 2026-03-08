@@ -138,7 +138,12 @@ export async function createEditorSelection(input: {
 
   const extension = inferFileExtension(collection.files);
   const rootPath = getCollectionsRootPath();
-  const collectionDir = resolve(rootPath, 'src', 'content', input.collectionName);
+  const collectionDir = resolve(
+    rootPath,
+    'src',
+    'content',
+    input.collectionName,
+  );
   const nextFilePath = resolve(collectionDir, `${normalizedSlug}${extension}`);
 
   try {

@@ -23,7 +23,7 @@ const propertySchema = z
 type JsonObjectSchema = z.infer<typeof jsonObjectSchema>;
 type JsonPropertySchema = z.infer<typeof propertySchema>;
 
-export type FieldUiKind = 'image' | 'imageArray' | 'color';
+export type FieldUiKind = 'image' | 'imageArray' | 'color' | 'icon';
 export type ImageFieldSourceMode = 'asset' | 'public';
 export type FieldUiConfig =
   | {
@@ -32,6 +32,10 @@ export type FieldUiConfig =
     }
   | {
       kind: 'color';
+    }
+  | {
+      kind: 'icon';
+      iconLibraries?: string[];
     };
 export type FieldUiMap = Record<string, FieldUiConfig>;
 
@@ -54,6 +58,12 @@ export type ResolvedField =
       sourceMode: ImageFieldSourceMode;
     }
   | { kind: 'color'; key: string; required: boolean }
+  | {
+      kind: 'icon';
+      key: string;
+      required: boolean;
+      iconLibraries?: string[];
+    }
   | { kind: 'dateAnyOf'; key: string; required: boolean }
   | { kind: 'unsupported'; key: string; required: boolean; reason: string };
 
@@ -164,6 +174,15 @@ function resolveCustomFieldKind(params: {
       kind: 'color',
       key: params.key,
       required: params.required,
+    };
+  }
+
+  if (customKind.kind === 'icon' && params.property.type === 'string') {
+    return {
+      kind: 'icon',
+      key: params.key,
+      required: params.required,
+      iconLibraries: customKind.iconLibraries,
     };
   }
 

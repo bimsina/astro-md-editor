@@ -68,11 +68,7 @@ export default function ThemeToggle() {
       ? 'Theme mode: auto (system). Click to switch to light mode.'
       : `Theme mode: ${mode}. Click to switch mode.`;
   const ModeIcon =
-    mode === 'auto'
-      ? LaptopMinimalIcon
-      : mode === 'dark'
-        ? MoonIcon
-        : SunIcon;
+    mode === 'auto' ? LaptopMinimalIcon : mode === 'dark' ? MoonIcon : SunIcon;
 
   return (
     <button

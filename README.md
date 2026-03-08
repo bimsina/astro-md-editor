@@ -82,7 +82,7 @@ Run dev against another project:
 node scripts/dev.mjs /absolute/path/to/astro-project --port 3000
 ```
 
-In dev mode, if schema files are missing, startup runs `astro sync` automatically for the selected project.
+In dev mode, startup always runs `astro sync` for the selected project before loading collections.
 
 ## Field overrides
 
@@ -94,7 +94,9 @@ Example:
 {
   "blog": {
     "brandColor": { "type": "color" },
-    "coverAssetPath": { "type": "image", "mode": "public" }
+    "coverAssetPath": { "type": "image", "mode": "public" },
+    "menuIconFiltered": { "type": "icon", "icon_libraries": ["lucide", "mdi"] },
+    "menuIconAny": { "type": "icon" }
   },
   "snippet": {
     "galleryPaths": { "type": "image", "multiple": true, "mode": "public" }
@@ -104,9 +106,10 @@ Example:
 
 Rules:
 
-- `type`: `image` or `color`
+- `type`: `image`, `color`, or `icon`
 - for `type: "image"`, optional `mode`: `asset` (default) or `public`
 - for `type: "image"`, optional `multiple: true` for array-style image input
+- for `type: "icon"`, optional `icon_libraries: string[]` to restrict picker libraries by Iconify prefix
 - shape: `{ [collectionName]: { [fieldName]: override } }`
 
 Precedence:
@@ -117,8 +120,16 @@ Precedence:
 
 Invalid or incompatible overrides are ignored with bootstrap warnings.
 
+### Example blog demo
+
+`example-blog` includes icon override samples in the `blog` collection:
+
+- `menuIconFiltered`: icon picker restricted to `lucide` and `mdi`
+- `menuIconAny`: icon picker with all Iconify libraries
+
 ## Notes
 
 - `public` assets are saved as `/path/from/public`.
 - `src` assets are saved as relative paths from the content file (`./...` or `../...`).
+- `icon` values are saved as Iconify strings like `lucide:messages-square`.
 - Custom controls currently target top-level frontmatter fields.

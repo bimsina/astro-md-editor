@@ -16,6 +16,8 @@ const blog = defineCollection({
       readingMinutes: z.coerce.number().optional(),
       brandColor: z.string().optional(),
       coverAssetPath: z.string().optional(),
+      menuIconFiltered: z.string().optional(),
+      menuIconAny: z.string().optional(),
     }),
 });
 

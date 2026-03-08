@@ -278,7 +278,8 @@ export default function RichEditor({
         }
 
         const previewKey = `${currentFilePath}::${normalizedSource}`;
-        const cachedPreviewUrl = localImagePreviewUrlsRef.current.get(previewKey);
+        const cachedPreviewUrl =
+          localImagePreviewUrlsRef.current.get(previewKey);
         if (cachedPreviewUrl) {
           if (node.getAttribute('src') !== cachedPreviewUrl) {
             node.setAttribute('src', cachedPreviewUrl);

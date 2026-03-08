@@ -12,6 +12,10 @@ type FieldUiConfig =
     }
   | {
       kind: 'color';
+    }
+  | {
+      kind: 'icon';
+      iconLibraries?: string[];
     };
 type FieldUiMap = Record<string, FieldUiConfig>;
 
@@ -74,10 +78,16 @@ function asFieldUiMap(value: unknown): FieldUiMap | undefined {
     if (
       rawValue === 'image' ||
       rawValue === 'imageArray' ||
-      rawValue === 'color'
+      rawValue === 'color' ||
+      rawValue === 'icon'
     ) {
       if (rawValue === 'color') {
         parsed[key] = { kind: 'color' };
+        continue;
+      }
+
+      if (rawValue === 'icon') {
+        parsed[key] = { kind: 'icon' };
         continue;
       }
 
@@ -105,10 +115,38 @@ function asFieldUiMap(value: unknown): FieldUiMap | undefined {
       parsed[key] = {
         kind: 'color',
       };
+      continue;
+    }
+
+    if (rawConfig.kind === 'icon') {
+      const iconLibraries =
+        asStringArray(rawConfig.iconLibraries) ??
+        asStringArray(rawConfig.icon_libraries);
+      parsed[key] = {
+        kind: 'icon',
+        iconLibraries,
+      };
     }
   }
 
   return Object.keys(parsed).length > 0 ? parsed : undefined;
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const parsed = [
+    ...new Set(
+      value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim().toLowerCase())
+        .filter((item) => item.length > 0),
+    ),
+  ];
+
+  return parsed.length > 0 ? parsed : undefined;
 }
 
 function cloneObjectRecord(value: ObjectRecord): ObjectRecord {

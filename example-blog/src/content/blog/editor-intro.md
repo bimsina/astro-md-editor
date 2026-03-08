@@ -13,6 +13,8 @@ tags:
 readingMinutes: 6
 brandColor: '#1E40AF'
 coverAssetPath: '/images/landing-hero.jpg'
+menuIconFiltered: 'lucide:messages-square'
+menuIconAny: 'solar:bolt-linear'
 ---
 
 This sample post is built for the editor, not a polished article.
@@ -23,5 +25,6 @@ Use it to test:
 - booleans and enums
 - image() fields
 - override-based image and color fields
+- override-based icon fields (filtered + unfiltered libraries)
 
 Because `coverAssetPath` is a plain string in schema, the override file can still show an image picker.

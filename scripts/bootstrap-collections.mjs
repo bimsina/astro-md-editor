@@ -36,6 +36,12 @@ const fieldOverrideSchema = z.discriminatedUnion('type', [
       type: z.literal('color'),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal('icon'),
+      icon_libraries: z.array(z.string()).optional(),
+    })
+    .strict(),
 ]);
 
 function isRecord(value) {
@@ -673,7 +679,7 @@ async function runAstroSync(rootDir, env = process.env) {
   const astroCliPath = await resolveAstroCliPath(rootDir);
   if (!astroCliPath) {
     throw new Error(
-      `Collections are missing and Astro CLI was not found at ${resolve(
+      `Astro CLI was not found at ${resolve(
         rootDir,
         'node_modules/.bin/astro',
       )}. Install dependencies in ${rootDir} and try again.`,
@@ -968,7 +974,27 @@ function resolveSchemaCompatibilityKind(propertySchema, desiredKind) {
     return 'color';
   }
 
+  if (desiredKind === 'icon' && propertySchema.type === 'string') {
+    return 'icon';
+  }
+
   return undefined;
+}
+
+function normalizeIconLibraries(iconLibraries) {
+  if (!Array.isArray(iconLibraries)) {
+    return undefined;
+  }
+
+  const normalized = [
+    ...new Set(
+      iconLibraries
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value) => value.length > 0)
+        .map((value) => value.toLowerCase()),
+    ),
+  ];
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function getOverrideConfig(override) {
@@ -989,6 +1015,13 @@ function getOverrideConfig(override) {
     };
   }
 
+  if (override.type === 'icon') {
+    return {
+      kind: 'icon',
+      iconLibraries: normalizeIconLibraries(override.icon_libraries),
+    };
+  }
+
   return undefined;
 }
 
@@ -1002,7 +1035,13 @@ function resolveCollectionFieldUiKinds(params) {
 
   const resolvedKinds = {};
 
-  const applyKind = (fieldKey, nextKind, sourceLabel, mode = 'asset') => {
+  const applyKind = (
+    fieldKey,
+    nextKind,
+    sourceLabel,
+    mode = 'asset',
+    iconLibraries,
+  ) => {
     if (!nextKind) {
       return;
     }
@@ -1028,6 +1067,14 @@ function resolveCollectionFieldUiKinds(params) {
       return;
     }
 
+    if (compatibleKind === 'icon') {
+      resolvedKinds[fieldKey] = {
+        kind: 'icon',
+        iconLibraries,
+      };
+      return;
+    }
+
     resolvedKinds[fieldKey] = {
       kind: compatibleKind,
     };
@@ -1041,7 +1088,13 @@ function resolveCollectionFieldUiKinds(params) {
 
   for (const [fieldKey, override] of Object.entries(overrideEntries ?? {})) {
     const overrideConfig = getOverrideConfig(override);
-    applyKind(fieldKey, overrideConfig?.kind, 'custom', overrideConfig?.mode);
+    applyKind(
+      fieldKey,
+      overrideConfig?.kind,
+      'custom',
+      overrideConfig?.mode,
+      overrideConfig?.iconLibraries,
+    );
   }
 
   return Object.keys(resolvedKinds).length > 0 ? resolvedKinds : undefined;
@@ -1073,18 +1126,11 @@ export async function bootstrapCollections(argv = [], options = {}) {
     throw new Error(`Root path is not a directory: ${rootDir}`);
   }
 
-  let collectionsParsed = await buildCollectionsFromFilesystem(rootDir);
-  const hasAnySchema = collectionsParsed.collections.some(
-    (collection) => isRecord(collection) && collection.hasSchema === true,
-  );
-  if (!hasAnySchema && mode === 'development') {
-    const schemaDirPath = resolve(rootDir, COLLECTIONS_RELATIVE_PATH_PREFIX);
-    console.warn(
-      `[bootstrap] No schema files found in ${schemaDirPath}; running "astro sync" in ${rootDir}.`,
-    );
+  if (mode === 'development') {
+    console.warn(`[bootstrap] Running "astro sync" in ${rootDir}.`);
     await runAstroSync(rootDir, env);
-    collectionsParsed = await buildCollectionsFromFilesystem(rootDir);
   }
+  let collectionsParsed = await buildCollectionsFromFilesystem(rootDir);
 
   if (
     !isRecord(collectionsParsed) ||

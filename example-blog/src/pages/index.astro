@@ -20,7 +20,8 @@ const snippetEntries = (await getCollection('snippet')).sort(
 const collectionConfigs = [
   {
     name: 'blog',
-    description: 'Blog posts with dates, image(), and override-driven fields.',
+    description:
+      'Blog posts with dates, image(), and override-driven color/image/icon fields.',
     fields: [
       'title',
       'description',
@@ -33,6 +34,8 @@ const collectionConfigs = [
       'readingMinutes',
       'brandColor',
       'coverAssetPath',
+      'menuIconFiltered',
+      'menuIconAny',
     ],
     entries: blogEntries.map((entry) => ({
       id: entry.id,

@@ -119,7 +119,10 @@ function parseNameStatusTreePath(params: {
     }
 
     const status = parts[0] ?? '';
-    if ((status.startsWith('R') || status.startsWith('C')) && parts.length >= 3) {
+    if (
+      (status.startsWith('R') || status.startsWith('C')) &&
+      parts.length >= 3
+    ) {
       const renamedPath = parts[2];
       if (renamedPath) {
         return renamedPath;
@@ -168,8 +171,13 @@ export function parseGitHistoryOutput(params: {
       continue;
     }
 
-    const [sha = '', shortSha = '', author = '', dateIso = '', ...messageParts] =
-      parts;
+    const [
+      sha = '',
+      shortSha = '',
+      author = '',
+      dateIso = '',
+      ...messageParts
+    ] = parts;
     if (!sha || !shortSha || !dateIso) {
       continue;
     }
