@@ -1,6 +1,29 @@
 {
   "name": "astro-md-editor",
-  "version": "0.0.4",
+  "version": "0.0.6",
+  "description": "Schema-aware editor for Astro content collections.",
+  "author": "Bibek Timsina",
+  "license": "MIT",
+  "keywords": [
+    "astro",
+    "markdown",
+    "mdx",
+    "content-collections",
+    "editor",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bimsina/astro-md-editor.git"
+  },
+  "homepage": "https://github.com/bimsina/astro-md-editor#readme",
+  "bugs": {
+    "url": "https://github.com/bimsina/astro-md-editor/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.28.2",
   "private": false,
   "type": "module",
   "bin": {
@@ -10,7 +33,8 @@
     ".output/",
     "index.mjs",
     "scripts/bootstrap-collections.mjs",
-    "README.md"
+    "README.md",
+    "LICENSE.md"
   ],
   "imports": {
     "#/*": "./src/*"

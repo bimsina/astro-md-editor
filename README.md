@@ -4,6 +4,8 @@
 
 Schema-aware editor for Astro content collections. It lets you edit frontmatter and markdown/MDX together, validates on save, and can reuse values from file Git history.
 
+Demo video: https://www.youtube.com/watch?v=-cI6ct8yLHM
+
 https://github.com/user-attachments/assets/7f38b6a4-fe1a-4e30-80c8-19a58aa860f1
 
 ## Quick start
@@ -94,3 +96,31 @@ Invalid or schema-incompatible overrides are ignored with startup warnings.
 - `src` assets are saved relative to the edited content file (`./...` or `../...`)
 - Icon values are saved as Iconify IDs (for example `lucide:messages-square`)
 - Custom controls currently target top-level frontmatter fields
+
+## Add a custom UI handler in code
+
+If you are extending the editor itself (not just using `astro-md-editor.fields.json`), add a new field kind in these places:
+
+1. `src/lib/schema-form.ts`
+   - Extend `FieldUiKind`, `FieldUiConfig`, and `ResolvedField`
+   - Update `resolveCustomFieldKind` to map your override kind to a resolved field
+
+2. `scripts/bootstrap-collections.mjs`
+   - Extend `fieldOverrideSchema` so config accepts your new `type`
+   - Update `getOverrideConfig` and `resolveSchemaCompatibilityKind`
+
+3. `src/components/editor/RightSidebar.tsx`
+   - Add your new field component
+   - Render it in the `resolvedFields.map(...)` switch (`field.kind === '<yourKind>'`)
+
+4. `src/lib/frontmatter-history-merge.ts`
+   - Update `isCompatibleValue` so Git-history apply validates your new kind correctly
+
+Quick checklist for a new kind (example: `slug`):
+
+- add `slug` to schema/field types
+- parse `type: "slug"` in bootstrap overrides
+- render `<SlugField />` in `RightSidebar`
+- add compatibility logic in history merge
+
+If any part is missing, the field falls back to default/unsupported handling.
