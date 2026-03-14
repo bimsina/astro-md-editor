@@ -1,4 +1,7 @@
-import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
+import Ajv2020, {
+  type ErrorObject,
+  type ValidateFunction,
+} from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 
 type ObjectRecord = Record<string, unknown>;
@@ -12,7 +15,7 @@ type ValidationResult = {
   errors: ValidationErrors;
 };
 
-const ajv = new Ajv({
+const ajv = new Ajv2020({
   allErrors: true,
   strict: false,
 });
@@ -88,7 +91,19 @@ export function validateFrontmatterDraft(
   schema: ObjectRecord,
   draft: ObjectRecord,
 ): ValidationResult {
-  const validator = getSchemaValidator(schema);
+  let validator: ValidateFunction;
+  try {
+    validator = getSchemaValidator(schema);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      valid: false,
+      errors: {
+        [ROOT_VALIDATION_KEY]: [`schema compile failed: ${message}`],
+      },
+    };
+  }
+
   const valid = validator(draft);
 
   return {

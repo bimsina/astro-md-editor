@@ -10,13 +10,19 @@ const ROOT_ENV_KEY = 'APP_ROOT_PATH';
 const DEFAULT_ROOT_PATH = '.';
 const COLLECTIONS_RELATIVE_PATH_PREFIX = '.astro/collections/';
 const CONTENT_RELATIVE_PATH_PREFIX = 'src/content/';
-const CONTENT_CONFIG_CANDIDATES = [
+const MODERN_CONTENT_CONFIG_CANDIDATES = [
   'src/content.config.ts',
   'src/content.config.mjs',
   'src/content.config.js',
+];
+const LEGACY_CONTENT_CONFIG_CANDIDATES = [
   'src/content/config.ts',
   'src/content/config.mjs',
   'src/content/config.js',
+];
+const CONTENT_CONFIG_CANDIDATES = [
+  ...MODERN_CONTENT_CONFIG_CANDIDATES,
+  ...LEGACY_CONTENT_CONFIG_CANDIDATES,
 ];
 const FIELD_OVERRIDES_FILE = 'astro-md-editor.fields.json';
 const ASTRO_DEFINITION_PREFIX = '#/definitions/';
@@ -657,6 +663,17 @@ async function fileExists(filePath) {
   }
 }
 
+async function resolveFirstExistingPath(rootDir, candidates) {
+  for (const candidate of candidates) {
+    const fullPath = resolve(rootDir, candidate);
+    if (await fileExists(fullPath)) {
+      return fullPath;
+    }
+  }
+
+  return undefined;
+}
+
 async function resolveAstroCliPath(rootDir) {
   const candidatePaths =
     process.platform === 'win32'
@@ -676,6 +693,11 @@ async function resolveAstroCliPath(rootDir) {
 }
 
 async function runAstroSync(rootDir, env = process.env) {
+  const legacyConfigPath = await resolveFirstExistingPath(
+    rootDir,
+    LEGACY_CONTENT_CONFIG_CANDIDATES,
+  );
+
   const astroCliPath = await resolveAstroCliPath(rootDir);
   if (!astroCliPath) {
     throw new Error(
@@ -687,16 +709,40 @@ async function runAstroSync(rootDir, env = process.env) {
   }
 
   await new Promise((resolveSync, rejectSync) => {
+    let commandOutput = '';
     const child = spawn(astroCliPath, ['sync'], {
       cwd: rootDir,
-      stdio: 'inherit',
+      stdio: ['ignore', 'pipe', 'pipe'],
       env,
       shell: process.platform === 'win32',
+    });
+
+    child.stdout?.on('data', (chunk) => {
+      const text = String(chunk);
+      commandOutput += text;
+      process.stdout.write(chunk);
+    });
+
+    child.stderr?.on('data', (chunk) => {
+      const text = String(chunk);
+      commandOutput += text;
+      process.stderr.write(chunk);
     });
 
     child.on('error', rejectSync);
     child.on('exit', (code, signal) => {
       if (signal || code !== 0) {
+        if (
+          legacyConfigPath &&
+          commandOutput.includes('LegacyContentConfigError')
+        ) {
+          console.warn(
+            `[bootstrap] Continuing without Astro schema sync due to legacy config at ${relative(rootDir, legacyConfigPath)}.`,
+          );
+          resolveSync();
+          return;
+        }
+
         rejectSync(
           new Error(
             `astro sync failed in ${rootDir} with exit code ${code ?? 'unknown'}.`,

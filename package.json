@@ -1,6 +1,6 @@
 {
   "name": "astro-md-editor",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Schema-aware editor for Astro content collections.",
   "author": "Bibek Timsina",
   "license": "MIT",
