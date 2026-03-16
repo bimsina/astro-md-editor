@@ -181,6 +181,7 @@ export async function createEditorSelection(input: {
       filePath: nextFilePath,
       data: {},
       content: nextContent,
+      createdAt: new Date().toISOString(),
     },
   });
 

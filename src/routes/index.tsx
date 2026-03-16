@@ -505,6 +505,7 @@ function App() {
                   filePath: result.filePath,
                   data: {},
                   content: '',
+                  createdAt: new Date().toISOString(),
                 },
               ],
             };
@@ -570,6 +571,8 @@ function App() {
               onDeleteFile={handleDeleteFile}
               isCreatingFile={isCreatingFile}
               deletingFileId={deletingFileId}
+              schema={selectedCollection?.schema}
+              fieldUi={selectedCollection?.fieldUi}
             />
           </aside>
         </ResizablePanel>

@@ -207,6 +207,7 @@ async function parseCollectionEntry(rootDir, collectionName, entryKey) {
     }
 
     const parsed = matter(source);
+    const fileStat = await stat(candidatePath);
     return {
       slugBase: buildEntrySlug(
         rootDir,
@@ -217,6 +218,7 @@ async function parseCollectionEntry(rootDir, collectionName, entryKey) {
       filePath: candidatePath,
       data: parsed.data,
       content: parsed.content,
+      createdAt: new Date(fileStat.birthtimeMs).toISOString(),
     };
   }
 

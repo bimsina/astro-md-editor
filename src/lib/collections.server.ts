@@ -55,6 +55,7 @@ type CollectionsData = {
       filePath: string;
       data: ObjectRecord;
       content: string;
+      createdAt?: string;
     }[];
   }[];
 };
@@ -174,6 +175,7 @@ export function getCollectionsData(): {
     filePath: string;
     data: ObjectRecord;
     content: string;
+    createdAt?: string;
   }[];
 }[] {
   const data = getParsedCollectionsData();
@@ -252,6 +254,7 @@ export function appendCollectionsFileCache(params: {
     filePath: string;
     data: ObjectRecord;
     content: string;
+    createdAt?: string;
   };
 }): boolean {
   const parsed = getParsedCollectionsData();
@@ -271,6 +274,7 @@ export function appendCollectionsFileCache(params: {
     filePath: params.file.filePath,
     data: cloneObjectRecord(params.file.data),
     content: params.file.content,
+    createdAt: params.file.createdAt,
   });
   cachedCollectionsRaw = JSON.stringify(parsed);
   cachedCollectionsData = parsed;
